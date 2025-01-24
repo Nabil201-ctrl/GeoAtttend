@@ -54,7 +54,7 @@ The **Attendance Management System** is a project designed to manage student att
 1. Clone the repository:
    ```bash
    git clone <repository-url>
-   cd attendance-management-system
+   cd GeoAttend
    ```
 2. Install dependencies:
    ```bash

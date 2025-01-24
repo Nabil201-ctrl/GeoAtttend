@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import bodyParser from 'body-parser';
 import cors from 'cors'; // Import CORS middleware
 import geolib from 'geolib';
+import ngrok from '@ngrok/ngrok';
 
 let geofenceData = {};
 
@@ -22,22 +23,6 @@ run().catch((err) => {
     console.log(err);
 });
 */
-
-// Define schemas (if needed for MongoDB)
-const geofenceSchema = new mongoose.Schema({
-    Name: String,
-    CourseID: String,
-    Latitude: Number,
-    Longitude: Number,
-    Radius: Number,
-    Timestamp: Date,
-});
-
-const attendanceSchema = new mongoose.Schema({
-    Name: String,
-    CourseID: String,
-    Timestamp: Date,
-});
 
 
 // Routes
@@ -98,12 +83,12 @@ class GeofenceService {
     this.devicesInside = []; // Array to track devices (students) inside the geofence
   }
 
-  // Method to check if a point is inside the geofence
+  // To check if a point is inside the geofence
   isPointInside(point) {
     return geolib.isPointInCircle(point, this.center, this.radius);
   }
 
-  // Method to add a device to the geofence (marks attendance)
+  // To add a device to the geofence (marks attendance)
   markAttendance(deviceId, location) {
     const currentTime = new Date();
     if (currentTime > this.endTime) {
@@ -117,11 +102,7 @@ class GeofenceService {
       if (!this.devicesInside.includes(deviceId)) {
         this.devicesInside.push(deviceId); // Add device to the list
         console.log("Attendance marked for device:", deviceId);
-
-        // Send the attendance data to the server
-        this.sendAttendanceDataToServer({ deviceId, location });
-
-        return true;
+        return true
       } else {
         console.log("Attendance already marked for this device.");
         return false;
@@ -132,7 +113,7 @@ class GeofenceService {
     }
   }
 
-  // Method to get the number of devices inside the geofence
+  // To get the number of devices inside the geofence
   getDevicesInside() {
     return this.devicesInside.length;
   };
@@ -183,14 +164,22 @@ if (geofenceData.userType === "Lecturer") {
   console.log("Devices inside the geofence:", geofence.getDevicesInside());
 }
 
-export default GeofenceService;
-
 
 
 
 
 
 // Start the server
-app.listen(8080, () => {
-    console.log('Server running on port :: 8080');
+const PORT = 8080;
+
+// Start the server
+app.listen(PORT, async () => {
+    console.log(`Server running on port :: ${PORT}`);
+    
+    try {
+        const url = await ngrok.connect(PORT); // Establish the Ngrok tunnel
+        console.log(`Ngrok URL: ${url}`);
+    } catch (error) {
+        console.error('Error connecting to Ngrok:', error);
+    }
 });
