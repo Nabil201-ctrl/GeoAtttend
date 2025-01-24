@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Form</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f2f2f2;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .login-container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: fit-content;
+            text-align: center;
+        }
+        .login-container h2 {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .login-container select{
+            width: 200px;
+            height: 30px;
+            border-radius: 9px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+        }
+
+        .login-container input[type="text"],
+        .login-container input[type="password"],
+        .login-container input[type="email"],
+        .login-container input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 15px;
+        }
+        .login-container button {
+            width: 100%;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .login-container button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h2>Login</h2>
+        <form action="/login" method="post">
+            <input type="text" name="username" placeholder="Username" required>
+            <input type="text" name="loginKey" placeholder="Login Key" id="loginKey" required>
+            <select id="UserType" name="usertype">
+                <option value="">Choose User Type</option>
+                <option value="Undergradute">Undergraduate</option>
+                <option value="Lecturer">Lecturer</option>
+            </select>
+            <input type="password" name="password" placeholder="Password" required>
+            <input
+            type="text"
+            id="student-id"
+            name="student-id"
+            pattern="^\d{2}/\d{3}[a-zA-Z]{3}/\d{3}$"
+            title="Format: 23/123csc/123 (2 digits/3 digits 3 letters/3 digits)"
+            required
+            placeholder = "Matric"
+          />
+          <input
+          type="email"
+          id="email"
+          name="email"
+          pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+          title="Please enter a valid email address"
+          required
+          placeholder= "Email"
+        />
+            <button type="submit" id="loginButton">Login</button>
+
+        </form>
+    </div>
+
+
+    <script>
+    let transferData = null;
+
+    document.getElementById('UserType').addEventListener('change', function () {
+        const userType = this.value;
+        const loginKey = document.getElementById('loginKey');
+        const studentId = document.getElementById('student-id');
+        const email = document.getElementById('email')
+
+        if (userType === 'Undergradute') {
+            loginKey.style.display = 'none';
+            if(studentId.style.display = 'none'){
+                studentId.style.display = 'block'
+            }
+            email.style.display = 'none'
+            studentId.required = true;
+
+        } else if (userType === 'Lecturer') {
+            loginKey.style.display = 'block';
+            studentId.style.display = 'none';
+        }
+    });
+
+    document.getElementById('loginButton').addEventListener('click', function (e) {
+        e.preventDefault();
+        const userType = document.getElementById('UserType').value;
+        if (!userType) {
+            alert('Please select a user type.');
+            return;
+        }
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                function (position) {
+                    const latitude = position.coords.latitude;
+                    const longitude = position.coords.longitude;
+
+                    transferData = {
+                        userType,
+                        latitude,
+                        longitude,
+                    };
+
+                    // Send transferData to the server
+                    fetch('/location', {
+                        method: 'POST',
+                        body: JSON.stringify(transferData),
+                        headers: { 'Content-Type': 'application/json' },
+                    })
+                        .then((response) => response.json())
+                        .then((data) => {
+                            console.log('Server response:', data);
+                            alert('Location successfully sent')
+                        })
+                        .catch((error) => {
+                            console.error('Error sending data:', error);
+                        });
+                },
+                function (error) {
+                    console.error('Error obtaining geolocation:', error);
+                }
+            );
+        } else {
+            alert('Geolocation is not supported by your browser.');
+        }
+    });
+    </script>
+</body>
+</html>

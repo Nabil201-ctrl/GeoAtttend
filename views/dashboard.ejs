@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lecturer Dashboard</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background-color: #f8f9fa;
+            padding: 15px;
+        }
+        
+        .main-content {
+            padding: 15px;
+        }
+
+        .locate-me {
+            border-radius: 5px;
+            background-color: green;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+        }
+
+        .table-responsive {
+            margin-bottom: 1rem;
+        }
+
+        /* Hide sidebar on mobile and show dropdown instead */
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+            
+            .mobile-nav {
+                display: block !important;
+            }
+
+            .main-content {
+                margin-top: 60px;
+            }
+        }
+
+        /* Hide mobile nav on desktop */
+        .mobile-nav {
+            display: none;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+    </style>
+</head>
+<body>
+    <!-- Mobile Navigation -->
+    <nav class="mobile-nav navbar navbar-expand-md navbar-light bg-light fixed-top">
+        <a class="navbar-brand" href="#">Dashboard</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#mobileNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        
+        <div class="collapse navbar-collapse" id="mobileNav">
+            <ul class="navbar-nav mr-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="#create-geofence">Create Geofence</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#manage-classes">Manage Classes</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#attendance-records">Attendance Records</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#notifications">Notifications</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Desktop Sidebar -->
+            <nav class="col-md-3 col-lg-2 sidebar">
+                <h2 class="h4 mb-4">Dashboard</h2>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#create-geofence">Create Geofence</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#manage-classes">Manage Classes</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#attendance-records">Attendance Records</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#notifications">Notifications</a>
+                    </li>
+                </ul>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-9 col-lg-10 main-content">
+                <div id="create-geofence" class="mb-5">
+                    <h3 class="h5 mb-4">Create Geofence</h3>
+                    <form>
+                        <div class="form-group">
+                            <label for="geofence-location">Determine my Current Location</label>
+                            <br>
+                            <button type="submit" name="location" id="create-geofence" class="locate-me">Locate Me</button>
+                        </div>
+                        <div class="form-group">
+                            <form>
+                                <label for="geofence-radius">Radius (meters)</label>
+                                <input type="number"
+                                name = "geofence-radius" 
+                                class="form-control" id="geofence-radius" 
+                                placeholder="Enter radius">
+                            </form>
+                        </div>
+                        <button type="submit" class="btn btn-primary" id =  "submit">Submit</button>
+                    </form>
+                </div>
+
+                <div id="manage-classes" class="mb-5">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="h5 mb-0">Manage Classes</h3>
+                        <button class="btn btn-success">Create New Class</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Class Name</th>
+                                    <th>Subject</th>
+                                    <th>Student List</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Class rows will go here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="attendance-records" class="mb-5">
+                    <h3 class="h5 mb-4">Attendance Records</h3>
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Date/Time</th>
+                                    <th>Class Name</th>
+                                    <th>Student Name</th>
+                                    <th>Attendance Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Attendance rows will go here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="notifications" class="mb-5">
+                    <h3 class="h5 mb-4">Notifications</h3>
+                    <!-- Notifications content will go here -->
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+
+        const geofenceRadiusInput = document.getElementById('geofence-radius')
+
+        const createGeofence = document.getElementById('create-geofence').addEventListener('click', (e) => {
+            e.preventDefault();
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    const latitude = position.coords.latitude;
+                    const longitude = position.coords.longitude;
+                    console.info('sent the data to the server for processing')
+                    
+                    // Optionally, send  this data to your server
+
+                    const geofenceRadius = geofenceRadiusInput.value;
+
+                    fetch('/location', {
+                        method: 'POST',
+                        body: JSON.stringify({ latitude, longitude, geofenceRadius }),
+                        headers: {'Content-Type': 'application/json'}
+                    });
+                }, function(error) {
+                    console.error("Error obtaining geolocation:", error);
+                });
+            } else {
+                console.log("Geolocation is not supported by this browser.");
+            }
+        });
+
+        // Close mobile nav when clicking a link
+        document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                const navbarCollapse = document.querySelector('.navbar-collapse');
+                if (navbarCollapse.classList.contains('show')) {
+                    navbarCollapse.classList.remove('show');
+                }
+            });
+        });
+    </script>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
