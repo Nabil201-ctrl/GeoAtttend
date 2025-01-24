@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import bodyParser from 'body-parser';
 import cors from 'cors'; // Import CORS middleware
 import geolib from 'geolib';
-import ngrok from '@ngrok/ngrok';
+import ngrok, { authtoken } from '@ngrok/ngrok';
 
 let geofenceData = {};
 
@@ -102,7 +102,8 @@ class GeofenceService {
       if (!this.devicesInside.includes(deviceId)) {
         this.devicesInside.push(deviceId); // Add device to the list
         console.log("Attendance marked for device:", deviceId);
-        return true
+
+        return true;
       } else {
         console.log("Attendance already marked for this device.");
         return false;
@@ -113,7 +114,7 @@ class GeofenceService {
     }
   }
 
-  // To get the number of devices inside the geofence
+  // Method to get the number of devices inside the geofence
   getDevicesInside() {
     return this.devicesInside.length;
   };
@@ -166,20 +167,6 @@ if (geofenceData.userType === "Lecturer") {
 
 
 
-
-
-
-// Start the server
-const PORT = 8080;
-
-// Start the server
-app.listen(PORT, async () => {
-    console.log(`Server running on port :: ${PORT}`);
-    
-    try {
-        const url = await ngrok.connect(PORT); // Establish the Ngrok tunnel
-        console.log(`Ngrok URL: ${url}`);
-    } catch (error) {
-        console.error('Error connecting to Ngrok:', error);
-    }
-});
+app.listen(8080, (res,req)=>{
+  console.log('server started on port :: 8080')
+})
