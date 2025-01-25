@@ -104,24 +104,17 @@
             <!-- Main content -->
             <main class="col-md-9 col-lg-10 main-content">
                 <div id="create-geofence" class="mb-5">
-                    <h3 class="h5 mb-4">Create Geofence</h3>
-                    <form>
-                        <div class="form-group">
-                            <label for="geofence-location">Determine my Current Location</label>
-                            <br>
-                            <button type="submit" name="location" id="create-geofence" class="locate-me">Locate Me</button>
-                        </div>
-                        <div class="form-group">
-                            <form>
+                    <h3 class="h5 mb-4">Enter Geofence Radius</h3>
+                        <div class="form">
+                            <form method="post" action="/attendance">
                                 <label for="geofence-radius">Radius (meters)</label>
                                 <input type="number"
-                                name = "geofence-radius" 
+                                name = "georadius" 
                                 class="form-control" id="geofence-radius" 
                                 placeholder="Enter radius">
+                                <button type="submit" class="btn btn-primary mt-2" id = "submit">Submit</button>
                             </form>
                         </div>
-                        <button type="submit" class="btn btn-primary" id =  "submit">Submit</button>
-                    </form>
                 </div>
 
                 <div id="manage-classes" class="mb-5">
@@ -176,33 +169,7 @@
     <script>
 
         const geofenceRadiusInput = document.getElementById('geofence-radius')
-
-        const createGeofence = document.getElementById('create-geofence').addEventListener('click', (e) => {
-            e.preventDefault();
-
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(function(position) {
-                    const latitude = position.coords.latitude;
-                    const longitude = position.coords.longitude;
-                    console.info('sent the data to the server for processing')
-                    
-                    // Optionally, send  this data to your server
-
-                    const geofenceRadius = geofenceRadiusInput.value;
-
-                    fetch('/location', {
-                        method: 'POST',
-                        body: JSON.stringify({ latitude, longitude, geofenceRadius }),
-                        headers: {'Content-Type': 'application/json'}
-                    });
-                }, function(error) {
-                    console.error("Error obtaining geolocation:", error);
-                });
-            } else {
-                console.log("Geolocation is not supported by this browser.");
-            }
-        });
-
+        
         // Close mobile nav when clicking a link
         document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
             link.addEventListener('click', () => {

@@ -5,7 +5,10 @@ import cors from 'cors'; // Import CORS middleware
 import geolib from 'geolib';
 import ngrok, { authtoken } from '@ngrok/ngrok';
 
-let geofenceData = {};
+
+// Declearations
+let geoData = {};
+let radius
 
 const app = express();
 app.set('view engine', 'ejs');
@@ -14,57 +17,81 @@ app.use(express.json());
 app.use(cors()); // Enable CORS for all routes
 app.use(express.static('public'));
 
-/* Uncomment if MongoDB is used
-const run = async () => {
+/* const run = async () => {
     await mongoose.connect('mongodb://127.0.0.1:27017/student');
     console.log('Connected to MongoDB');
 };
 run().catch((err) => {
     console.log(err);
-});
-*/
+}); */
+
 
 
 // Routes
 app.get('/', (req, res) => {
-    res.render('login');
+    res.render('passkey');
 });
+
+app.post('/passkey', (req, res) => {
+  const key = req.body.passkey;
+
+  if (key === 'NABIL') {
+    const generatePasscode = (length, type) => {
+      let characters = '';
+      if (type === 'numeric') {
+        characters = '0123456789';
+      } else if (type === 'alphabetic') {
+        characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+      } else if (type === 'alphanumeric') {
+        characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      } else {
+        throw new Error('Invalid type. Choose "numeric", "alphabetic", or "alphanumeric".');
+      }
+
+      let passcode = '';
+      for (let i = 0; i < length; i++) {
+        const randomIndex = Math.floor(Math.random() * characters.length);
+        passcode += characters[randomIndex];
+      }
+
+      return passcode;
+    };
+
+    const passcode = generatePasscode(6, 'alphanumeric');
+    return res.status(200).json({
+      success: true,
+      passcode: passcode, // The generated passcode
+      message: 'Passcode generated successfully.' // A success message
+    });
+  } else {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid passkey. Access denied.',
+    });
+  }
+});
+
+
 
 app.get('/dashboard', (req, res) => {
     res.render('dashboard');
 });
 
+
 app.post('/attendance', (req, res) => {
-    const attendanceData = req.body; // Get the data sent from the client
-    console.log("Received attendance data:", attendanceData);
+    radius = req.body.georadius; // Get the data sent from the client
+    console.log(radius)
 
     // Handle the data (e.g., save it to the database or process it)
-    res.json({
-        message: "Attendance data received successfully",
-        receivedData: attendanceData,
-    });
 });
 
 app.post('/location', (req, res) => {
-    const geoData = req.body;
-    geofenceData = geoData;
+    geoData = req.body;
     console.log("Geofence data received:", geoData);
     res.json({
         message: "Geofence data received successfully",
-        receivedData: geoData.userType,
+        receivedData: geoData,
     });
-});
-
-app.post('/login', (req, res) => {
-    const user = req.body.username;
-    const pass = req.body.password;
-    console.log("Login attempt:", { user, pass });
-    res.redirect('/dashboard');
-});
-
-
-
-
 
 
 
@@ -74,7 +101,7 @@ app.post('/login', (req, res) => {
 
 
 
-// Geofence Service Class
+    // Geofence Service Class
 class GeofenceService {
   constructor(center, radius, endTime) {
     this.center = center; // Geofence center (latitude, longitude)
@@ -120,12 +147,20 @@ class GeofenceService {
   };
 }
 
+let geofenceCenter
+
+if (geoData.userType === "Lecturer") {
+  geofenceCenter = {
+      latitude: geoData.latitude,
+      longitude: geoData.longitude,
+  };
+}
+
+console.log(geofenceCenter)
 // Define geofence parameters based on data from the server
-const geofenceCenter = {
-  latitude: geofenceData.latitude || 0,
-  longitude: geofenceData.longitude || 0,
-};
-const radiusInMeters = geofenceData.radius || 1000; // Default radius is 1 km
+
+const radiusInMeters = radius; // Default radius is 1 km
+console.log(radiusInMeters)
 const endTime = new Date(); // Set geofence end time (e.g., 5 minutes from now)
 endTime.setMinutes(endTime.getMinutes() + 5); // Geofence active for 5 minutes
 
@@ -133,12 +168,12 @@ endTime.setMinutes(endTime.getMinutes() + 5); // Geofence active for 5 minutes
 const geofence = new GeofenceService(geofenceCenter, radiusInMeters, endTime);
 
 // Simulate marking attendance for devices
-if (geofenceData.userType === "Undergradute") {
+if (geoData.userType === "Undergradute") {
   const device = {
-    id: "device1", // Device ID
+    id: "device", // Device ID
     location: {
-      latitude: geofenceData.latitude,
-      longitude: geofenceData.longitude,
+      latitude: geoData.latitude,
+      longitude: geoData.longitude,
     },
   };
 
@@ -150,20 +185,18 @@ if (geofenceData.userType === "Undergradute") {
 }
 
 // Simulate a lecturer trying to mark attendance
-if (geofenceData.userType === "Lecturer") {
-  const lecturerDevice = {
-    id: "lecturer1",
-    location: {
-      latitude: geofenceData.latitude,
-      longitude: geofenceData.longitude,
-    },
-  };
+});
 
-  // Mark attendance for the lecturer device
-  geofence.markAttendance(lecturerDevice.id, lecturerDevice.location);
+app.post('/login', (req, res) => {
+    const user = req.body.username;
+    const pass = req.body.password;
+    console.log("Login attempt:", { user, pass });
+    res.redirect('/dashboard');
+});
 
-  console.log("Devices inside the geofence:", geofence.getDevicesInside());
-}
+
+
+
 
 
 

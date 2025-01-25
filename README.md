@@ -21,6 +21,9 @@ The **Attendance Management System** is a project designed to manage student att
 - Allows querying of attendance totals for a student within a class.
 - Provides a breakdown of **Present** and **Absent** counts.
 
+### 4. Keypass for the lecture
+- Allow the lecture to login with the required as keypass then he generates a passkey for the student.
+
 ### 4. Notifications
 - Lecturers can send notifications to students regarding class updates or attendance-related reminders.
 
