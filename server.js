@@ -5,10 +5,9 @@ import cors from 'cors'; // Import CORS middleware
 import geolib from 'geolib';
 import ngrok, { authtoken } from '@ngrok/ngrok';
 
-
 // Declearations
 let geoData = {};
-let radius
+let radius;
 
 const app = express();
 app.set('view engine', 'ejs');
@@ -17,22 +16,59 @@ app.use(express.json());
 app.use(cors()); // Enable CORS for all routes
 app.use(express.static('public'));
 
-/* const run = async () => {
-    await mongoose.connect('mongodb://127.0.0.1:27017/student');
-    console.log('Connected to MongoDB');
-};
-run().catch((err) => {
-    console.log(err);
-}); */
-
-
-
-// Routes
-app.get('/', (req, res) => {
-    res.render('passkey');
+// Database connection
+const run = async () => {
+  await mongoose.connect('mongodb://127.0.0.1:27017/attendance');
+}
+run().then(()=>{
+  console.log('connected to my DB')
+}).catch((err)=>{
+  console.error(err)
 });
 
-app.post('/passkey', (req, res) => {
+// Schemas
+const passcodeSchema = new mongoose.Schema({
+  code: { type: String, required: true },
+  generatedAt: { type: Date, default: Date.now },
+});
+
+const geofenceSchema = new mongoose.Schema({
+  name: String,
+  courseID: String,
+  latitude: Number,
+  longitude: Number,
+  radius: Number,
+  timestamp: { type: Date, default: Date.now },
+});
+
+const attendanceSchema = new mongoose.Schema({
+  studentID: mongoose.Schema.Types.ObjectId,
+  classID: mongoose.Schema.Types.ObjectId,
+  date: { type: Date, default: Date.now },
+  status: { type: String, enum: ["Present", "Absent"] },
+});
+
+const userSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  role: { type: String, enum: ["Lecturer", "Student"], required: true },
+});
+
+// Models
+const Passcode = mongoose.model('Passcode', passcodeSchema);
+const Geofence = mongoose.model("Geofence", geofenceSchema);
+const Attendance = mongoose.model("Attendance", attendanceSchema);
+const User = mongoose.model("User", userSchema);
+
+// Routes
+
+// Root Route
+app.get('/', (req, res) => {
+  res.render('passkey');
+});
+
+// Passkey Route
+app.post('/passkey', async (req, res) => {
   const key = req.body.passkey;
 
   if (key === 'NABIL') {
@@ -43,7 +79,7 @@ app.post('/passkey', (req, res) => {
       } else if (type === 'alphabetic') {
         characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
       } else if (type === 'alphanumeric') {
-        characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi jklmnopqrstuvwxyz0123456789';
       } else {
         throw new Error('Invalid type. Choose "numeric", "alphabetic", or "alphanumeric".');
       }
@@ -57,12 +93,23 @@ app.post('/passkey', (req, res) => {
       return passcode;
     };
 
-    const passcode = generatePasscode(6, 'alphanumeric');
-    return res.status(200).json({
-      success: true,
-      passcode: passcode, // The generated passcode
-      message: 'Passcode generated successfully.' // A success message
-    });
+    const passcode = generatePasscode(6, 'numeric');
+    try {
+      // Save the passcode to the database
+      const newPasscode = new Passcode({ code: passcode });
+      await newPasscode.save();
+
+      return res.status(200).json({
+        success: true,
+        passcode,
+        message: 'Passcode generated and stored successfully.',
+      }).then(() => {res.redirect('login');});
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error saving passcode.',
+      });
+    }
   } else {
     return res.status(401).json({
       success: false,
@@ -71,135 +118,136 @@ app.post('/passkey', (req, res) => {
   }
 });
 
+// Login Route
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+  const user = await User.insertOne({ username, password });
+  if (!user) return res.status(401).json({ message: "Invalid credentials" });
+  res.status(200).json({ message: "Login successful", role: user.role });
+  res.render('dashboard');
+});
 
-
+// Dashboard Route
 app.get('/dashboard', (req, res) => {
-    res.render('dashboard');
+  res.render('dashboard');
 });
 
-
-app.post('/attendance', (req, res) => {
-    radius = req.body.georadius; // Get the data sent from the client
-    console.log(radius)
-
-    // Handle the data (e.g., save it to the database or process it)
+// Create Geofence Route
+app.post('/geofence', async (req, res) => {
+  const { name, courseID, latitude, longitude, radius } = req.body;
+  const geofence = new Geofence({ name, courseID, latitude, longitude, radius });
+  await geofence.save();
+  res.status(201).json({ message: "Geofence created successfully", geofence });
 });
 
+// Mark Attendance Route
+app.post('/attendance', async (req, res) => {
+  const { studentID, classID, latitude, longitude } = req.body;
+  const geofence = await Geofence.findOne({ classID });
+
+  if (!geofence) return res.status(404).json({ message: "Geofence not found" });
+
+  const isWithinGeofence = geolib.isPointWithinRadius(
+    { latitude, longitude },
+    { latitude: geofence.latitude, longitude: geofence.longitude },
+    geofence.radius
+  );
+
+  const status = isWithinGeofence ? "Present" : "Absent";
+  const attendance = new Attendance({ studentID, classID, status });
+  await attendance.save();
+
+  res.status(201).json({ message: "Attendance recorded", attendance });
+});
+
+// Location Route
 app.post('/location', (req, res) => {
-    geoData = req.body;
-    console.log("Geofence data received:", geoData);
-    res.json({
-        message: "Geofence data received successfully",
-        receivedData: geoData,
-    });
+  geoData = req.body;
+  console.log("Geofence data received:", geoData);
+  res.json({
+    message: "Geofence data received successfully",
+    receivedData: geoData,
+  });
 
-
-
-
-/////////////////////////////////////// Geofencing /////////////////////////////////////
-
-
-
-
-    // Geofence Service Class
-class GeofenceService {
-  constructor(center, radius, endTime) {
-    this.center = center; // Geofence center (latitude, longitude)
-    this.radius = radius; // Radius in meters
-    this.endTime = endTime; // Time when geofence will close
-    this.devicesInside = []; // Array to track devices (students) inside the geofence
+  // Geofence Logic
+  let geofenceCenter;
+  if (geoData.userType === "Lecturer") {
+    geofenceCenter = {
+      latitude: geoData.latitude,
+      longitude: geoData.longitude,
+    };
   }
 
-  // To check if a point is inside the geofence
-  isPointInside(point) {
-    return geolib.isPointInCircle(point, this.center, this.radius);
-  }
+  const radiusInMeters = radius; // Default radius is 1 km
+  const endTime = new Date();
+  endTime.setMinutes(endTime.getMinutes() + 5); // Geofence active for 5 minutes
 
-  // To add a device to the geofence (marks attendance)
-  markAttendance(deviceId, location) {
-    const currentTime = new Date();
-    if (currentTime > this.endTime) {
-      console.log("Geofence closed. Attendance not allowed.");
-      return false;
+  const geofence = new (class GeofenceService {
+    constructor(center, radius, endTime) {
+      this.center = center;
+      this.radius = radius;
+      this.endTime = endTime;
+      this.devicesInside = [];
     }
 
-    // Check if the device is within the geofence
-    if (this.isPointInside(location)) {
-      // Check if the device is already inside (attendance already marked)
-      if (!this.devicesInside.includes(deviceId)) {
-        this.devicesInside.push(deviceId); // Add device to the list
-        console.log("Attendance marked for device:", deviceId);
+    isPointInside(point) {
+      return geolib.isPointInCircle(point, this.center, this.radius);
+    }
 
-        return true;
-      } else {
-        console.log("Attendance already marked for this device.");
+    markAttendance(deviceId, location) {
+      const currentTime = new Date();
+      if (currentTime > this.endTime) {
+        console.log("Geofence closed. Attendance not allowed.");
         return false;
       }
-    } else {
-      console.log("Device is outside the geofence.");
-      return false;
+
+      if (this.isPointInside(location)) {
+        if (!this.devicesInside.includes(deviceId)) {
+          this.devicesInside.push(deviceId);
+          console.log("Attendance marked for device:", deviceId);
+          return true;
+        } else {
+          console.log("Attendance already marked for this device.");
+          return false;
+        }
+      } else {
+        console.log("Device is outside the geofence.");
+        return false;
+      }
     }
+
+    getDevicesInside() {
+      return this.devicesInside.length;
+    }
+  })(geofenceCenter, radiusInMeters, endTime);
+
+  if (geoData.userType === "Undergradute") {
+    const device = {
+      id: "device",
+      location: {
+        latitude: geoData.latitude,
+        longitude: geoData.longitude,
+      },
+    };
+
+    geofence.markAttendance(device.id, device.location);
+    console.log("Devices inside the geofence:", geofence.getDevicesInside());
   }
-
-  // Method to get the number of devices inside the geofence
-  getDevicesInside() {
-    return this.devicesInside.length;
-  };
-}
-
-let geofenceCenter
-
-if (geoData.userType === "Lecturer") {
-  geofenceCenter = {
-      latitude: geoData.latitude,
-      longitude: geoData.longitude,
-  };
-}
-
-console.log(geofenceCenter)
-// Define geofence parameters based on data from the server
-
-const radiusInMeters = radius; // Default radius is 1 km
-console.log(radiusInMeters)
-const endTime = new Date(); // Set geofence end time (e.g., 5 minutes from now)
-endTime.setMinutes(endTime.getMinutes() + 5); // Geofence active for 5 minutes
-
-// Create a GeofenceService instance
-const geofence = new GeofenceService(geofenceCenter, radiusInMeters, endTime);
-
-// Simulate marking attendance for devices
-if (geoData.userType === "Undergradute") {
-  const device = {
-    id: "device", // Device ID
-    location: {
-      latitude: geoData.latitude,
-      longitude: geoData.longitude,
-    },
-  };
-
-  // Mark attendance for the undergraduate device
-  geofence.markAttendance(device.id, device.location);
-
-  // Get and log the number of devices inside the geofence
-  console.log("Devices inside the geofence:", geofence.getDevicesInside());
-}
-
-// Simulate a lecturer trying to mark attendance
 });
 
-app.post('/login', (req, res) => {
-    const user = req.body.username;
-    const pass = req.body.password;
-    console.log("Login attempt:", { user, pass });
-    res.redirect('/dashboard');
+// Attendance Summary Route
+app.post('/attendance/summary', async (req, res) => {
+  const { studentID, classID } = req.body;
+  const summary = await Attendance.aggregate([
+    { $match: { studentID: mongoose.Types.ObjectId(studentID), classID: mongoose.Types.ObjectId(classID) } },
+    { $group: {      _id: "$status",
+      count: { $sum: 1 },
+    } },
+  ]);
+
+  res.status(200).json(summary);
 });
 
-
-
-
-
-
-
-app.listen(8080, (res,req)=>{
-  console.log('server started on port :: 8080')
-})
+// Start the server
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
