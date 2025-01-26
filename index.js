@@ -1,24 +1,42 @@
-const bodyParser = require('body-parser');
-const express = require('express');
-const geolib = require('geolib');
-const { default: mongoose } = require('mongoose');
+document.getElementById('loginButton').addEventListener('click', function (e) {
+    e.preventDefault();
+    const userType = document.getElementById('UserType').value;
+    if (!userType) {
+        alert('Please select a user type.');
+        return;
+    }
 
-const app = express();
-app.use(bodyParser.urlencoded({extended: true}));
-app.set('veiw engine', 'ejs')
-app.use(express.static('public'))
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function (position) {
+                const latitude = position.coords.latitude;
+                const longitude = position.coords.longitude;
 
+                transferData = {
+                    userType,
+                    latitude,
+                    longitude,
+                };
 
-const point1 = {latitude: 40.7128, longitude: -74.0060}
-const point2 = {latitude:34.0522, longitude: -118.2437}
-
-const getDistance = geolib.getDistance(point1, point2)
-console.log(`the point is between` + getDistance )
-
-
-app.get('/student',(req,res)=>{
-    const { longitude, latitude} = req.body
-})
-app.listen(3000, ()=>{
-    console.log('connected to server:3000')
-})
+                // Send transferData to the server
+                fetch('/location', {
+                    method: 'POST',
+                    body: JSON.stringify(transferData),
+                    headers: { 'Content-Type': 'application/json' },
+                })
+                    .then((response) => response.json())
+                    .then((data) => {
+                        console.log('Server response:', data);
+                        alert('Location successfully sent')
+                    })
+                    .catch((error) => {
+                        console.error('Error sending data:', error);
+                    });
+            },
+            function (error) {
+                console.error('Error obtaining geolocation:', error);
+            }
+        );
+    } else {
+        alert('Geolocation is not supported by your browser.');
+    }

@@ -64,7 +64,7 @@ const User = mongoose.model("User", userSchema);
 
 // Root Route
 app.get('/', (req, res) => {
-  res.render('passkey');
+  res.render('login');
 });
 
 // Passkey Route
@@ -103,7 +103,7 @@ app.post('/passkey', async (req, res) => {
         success: true,
         passcode,
         message: 'Passcode generated and stored successfully.',
-      }).then(() => {res.redirect('login');});
+      }).then(() => {res.render('login');});
     } catch (error) {
       return res.status(500).json({
         success: false,
