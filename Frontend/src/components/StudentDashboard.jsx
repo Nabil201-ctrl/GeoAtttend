@@ -1,7 +1,9 @@
+// components/StudentDashboard.js
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import FingerprintJS from 'fingerprintjs2';
 
 export default function StudentDashboard() {
   const [passcode, setPasscode] = useState('');
@@ -11,9 +13,17 @@ export default function StudentDashboard() {
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [user, setUser] = useState(null);
   const [enrolledCourses, setEnrolledCourses] = useState([]);
+  const [deviceId, setDeviceId] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Generate device ID
+    FingerprintJS.get((components) => {
+      const values = components.map(component => component.value);
+      const fingerprint = FingerprintJS.x64hash128(values.join(''), 31);
+      setDeviceId(fingerprint);
+    });
+
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       const parsedUser = JSON.parse(storedUser);
@@ -55,7 +65,7 @@ export default function StudentDashboard() {
         (position) => {
           const latitude = position.coords.latitude.toFixed(6);
           const longitude = position.coords.longitude.toFixed(6);
-          console.log('Browser location:', { latitude, longitude }); // Debug
+          console.log('Browser location:', { latitude, longitude });
           setLocation({ latitude, longitude });
           setIsLoadingLocation(false);
         },
@@ -64,7 +74,7 @@ export default function StudentDashboard() {
           if (error.code === error.PERMISSION_DENIED) {
             message = 'Location access denied. Please enable it in your browser settings.';
           } else if (error.code === error.POSITION_UNAVAILABLE) {
-            message = 'Location information is unavailable.';
+            message = 'Location information is unavailab-*/*9le.';
           }
           showToast(message, 'error');
           setIsLoadingLocation(false);
@@ -79,8 +89,8 @@ export default function StudentDashboard() {
 
   const handleMarkAttendance = async (e) => {
     e.preventDefault();
-    if (!passcode || !location.latitude || !location.longitude) {
-      showToast('Please enter passcode and get location', 'error');
+    if (!passcode || !location.latitude || !location.longitude || !deviceId) {
+      showToast('Please enter passcode, get location, and ensure device ID is generated', 'error');
       return;
     }
     if (!user) {
@@ -100,7 +110,6 @@ export default function StudentDashboard() {
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
       const decoded = JSON.parse(atob(base64));
-      console.log('Decoded token:', decoded);
       if (decoded.role !== 'student') {
         showToast('Token role mismatch. Please log in as a student.', 'error');
         navigate('/');
@@ -113,7 +122,6 @@ export default function StudentDashboard() {
       return;
     }
 
-    // Validate coordinates
     const lat = parseFloat(location.latitude);
     const lon = parseFloat(location.longitude);
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
@@ -123,20 +131,14 @@ export default function StudentDashboard() {
 
     setIsSubmitting(true);
     try {
-      console.log('Sending attendance request:', { passcode, location: { latitude: lat, longitude: lon }, student: user, token });
+      console.log('Sending attendance request:', { passcode, location: { latitude: lat, longitude: lon }, student: user, deviceId, token });
       const response = await axios.post(
-        '/api/sessions/attend',
+        'http://localhost:5000/api/sessions/attend', // Fixed URL
         {
           passcode,
-          location: {
-            latitude: lat,
-            longitude: lon,
-          },
-          student: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-          },
+          location: { latitude: lat, longitude: lon },
+          student: { id: user.id, name: user.name, email: user.email },
+          deviceId
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -149,17 +151,13 @@ export default function StudentDashboard() {
       setPasscode('');
       setLocation({ latitude: '', longitude: '' });
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Failed to mark attendance';
+      const errorMessage = error.response?.data?.message || 'Failed to mark attendance. Please try again.';
       console.error('Attendance error:', {
         status: error.response?.status,
         data: error.response?.data,
         message: errorMessage,
       });
-      if (errorMessage.includes('Outside geofence')) {
-        showToast(`You are too far from the session location (${errorMessage.match(/[\d.]+m/)[0]} away).`, 'error');
-      } else {
-        showToast(errorMessage, 'error');
-      }
+      showToast(errorMessage, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -195,6 +193,7 @@ export default function StudentDashboard() {
           <h2 className="text-xl font-semibold mb-2">Mark Attendance</h2>
           <p className="text-textSecondary mb-4 text-sm">
             Enter the session passcode and get your location to mark attendance.
+            Your device is uniquely identified to prevent spoofing.
           </p>
           {enrolledCourses.length === 0 && (
             <p className="text-error mb-4 text-sm">
@@ -243,9 +242,8 @@ export default function StudentDashboard() {
             </div>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className={`w-full p-3 bg-primary text-white rounded hover:bg-accent transition-all duration-200 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
+              disabled={isSubmitting || !deviceId}
+              className={`w-full p-3 bg-primary text-white rounded hover:bg-accent transition-all duration-200 ${isSubmitting || !deviceId ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {isSubmitting ? 'Submitting...' : 'Mark Attendance'}
             </button>
@@ -254,8 +252,7 @@ export default function StudentDashboard() {
       </main>
       {toast.show && (
         <motion.div
-          className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 ${toast.type === 'success' ? 'bg-success text-white' : 'bg-error text-white'
-            }`}
+          className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 ${toast.type === 'success' ? 'bg-success text-white' : 'bg-error text-white'}`}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 10 }}

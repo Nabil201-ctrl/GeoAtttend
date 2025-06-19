@@ -1,9 +1,6 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Listbox } from '@headlessui/react';
-import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 export default function CreateSession({ setActiveSessions, refreshCourses }) {
   const [formData, setFormData] = useState({
@@ -14,6 +11,8 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
     longitude: '',
     geofence: 'hall-45',
     passcode: '',
+
+
     duration: '1hr',
   });
   const [courses, setCourses] = useState([]);
@@ -25,9 +24,9 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
   const navigate = useNavigate();
 
   const geofenceOptions = [
-    { id: 'hall-45', name: 'Around Hall (45m)', radius: 45, svg: '<circle cx="50" cy="50" r="45" fill="none" stroke="#3b82f6" stroke-width="2"/>' },
-    { id: 'building-100', name: 'Around Building (100m)', radius: 100, svg: '<circle cx="50" cy="50" r="100" fill="none" stroke="#3b82f6" stroke-width="2"/>' },
-    { id: 'campus-200', name: 'Campus Area (200m)', radius: 200, svg: '<circle cx="50" cy="50" r="200" fill="none" stroke="#3b82f6" stroke-width="2"/>' },
+    { id: 'hall-45', name: 'Around Hall (45m)', radius: 45 },
+    { id: 'building-100', name: 'Around Building (100m)', radius: 100 },
+    { id: 'campus-200', name: 'Campus Area (200m)', radius: 200 },
   ];
 
   const durationOptions = [
@@ -47,16 +46,16 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
       try {
         const token = localStorage.getItem('token');
         if (!token) {
-          showToast('Please log in again', 'error');
+          showToast('Session Expired. Please log in again.', 'error');
           navigate('/');
           return;
         }
         const response = await axios.get('/api/courses', {
           headers: { Authorization: `Bearer ${token}` },
         });
-        setCourses(response.data.sort((a, b) => a.name.localeCompare(b.name)));
+        setCourses(response.data);
       } catch (error) {
-        showToast(error.response?.data?.message || 'Failed to fetch courses', 'error');
+        showToast('Failed to fetch courses', 'error');
       } finally {
         setIsLoadingCourses(false);
       }
@@ -69,36 +68,33 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setFormData({
-            ...formData,
+          setFormData((prev) => ({
+            ...prev,
             latitude: position.coords.latitude.toFixed(6),
             longitude: position.coords.longitude.toFixed(6),
-          });
+          }));
+          setIsLoadingLocation(false);
           setErrors((prev) => ({ ...prev, latitude: '', longitude: '' }));
-          setIsLoadingLocation(false);
         },
-        (error) => {
-          let message = 'Failed to get location';
-          if (error.code === error.PERMISSION_DENIED) {
-            message = 'Location access denied. Please enable it in your browser settings.';
-          } else if (error.code === error.POSITION_UNAVAILABLE) {
-            message = 'Location information is unavailable.';
-          }
-          showToast(message, 'error');
+        () => {
+          showToast('Failed to get location', 'error');
           setIsLoadingLocation(false);
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
+        }
       );
     } else {
-      showToast('Geolocation is not supported by this browser', 'error');
+      showToast('Geolocation not supported', 'error');
       setIsLoadingLocation(false);
     }
   };
 
   const generatePasscode = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    const passcode = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-    setFormData({ ...formData, passcode });
+    if (!formData.courseId) {
+      showToast('Select a course first', 'error');
+      return;
+    }
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const code = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    setFormData((prev) => ({ ...prev, passcode: `${formData.courseId}-${code}` }));
     setErrors((prev) => ({ ...prev, passcode: '' }));
   };
 
@@ -106,8 +102,14 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
     const newErrors = {};
     if (!formData.courseId) newErrors.courseId = 'Please select a course';
     if (!formData.passcode) newErrors.passcode = 'Passcode is required';
-    if (!formData.latitude) newErrors.latitude = 'Latitude is required';
-    if (!formData.longitude) newErrors.longitude = 'Longitude is required';
+    if (
+      formData.latitude === '' ||
+      isNaN(Number(formData.latitude))
+    ) newErrors.latitude = 'Valid latitude required';
+    if (
+      formData.longitude === '' ||
+      isNaN(Number(formData.longitude))
+    ) newErrors.longitude = 'Valid longitude required';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -115,33 +117,31 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) {
-      showToast('Please fill in all required fields', 'error');
+      showToast('Please fill all required fields', 'error');
       return;
     }
-
     setIsSubmitting(true);
     try {
-      const selectedGeofence = geofenceOptions.find((g) => g.id === formData.geofence);
-      const selectedDuration = durationOptions.find((d) => d.id === formData.duration);
       const startTime = new Date();
-      const endTime = new Date(startTime.getTime() + selectedDuration.minutes * 60 * 1000);
-
-      const response = await axios.post(
-        '/api/sessions',
-        {
-          ...formData,
-          location: { latitude: parseFloat(formData.latitude), longitude: parseFloat(formData.longitude) },
-          radius: selectedGeofence.radius,
-          startTime,
-          endTime,
+      const endTime = new Date(startTime.getTime() + (durationOptions.find(opt => opt.id === formData.duration)?.minutes || 60) * 60 * 1000);
+      const payload = {
+        courseId: formData.courseId,
+        courseName: formData.courseName,
+        department: formData.department,
+        location: {
+          latitude: parseFloat(formData.latitude),
+          longitude: parseFloat(formData.longitude),
         },
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        }
-      );
-
+        radius: geofenceOptions.find(opt => opt.id === formData.geofence)?.radius || 45,
+        passcode: formData.passcode,
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+      };
+      const response = await axios.post('http://localhost:5000/api/sessions', payload, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
       setActiveSessions((prev) => [...prev, response.data]);
-      showToast('Session created successfully!');
+      showToast('Session created successfully', 'success');
       setFormData({
         courseId: '',
         courseName: '',
@@ -162,13 +162,8 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
   };
 
   return (
-    <motion.div
-      className="bg-white p-6 rounded-lg shadow-sm border border-border"
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-    >
-      <h2 className="text-xl font-semibold mb-2">Create New Session</h2>
-      <p className="text-textSecondary mb-4 text-sm">Set up a new attendance session for your course</p>
+    <div className="bg-white p-6 rounded-lg shadow-card border border-border">
+      <h2 className="text-xl font-semibold mb-2">Create Attendance Session</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1">Course</label>
@@ -181,62 +176,84 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
                 courseId: e.target.value,
                 courseName: selectedCourse?.name || '',
                 department: selectedCourse?.department || '',
+                passcode: '',
               });
               setErrors((prev) => ({ ...prev, courseId: '' }));
             }}
-            className={`w-full p-3 border rounded focus:outline-none focus:border-primary ${
-              errors.courseId ? 'border-error' : 'border-border'
-            }`}
+            className={`w-full p-3 border rounded focus:outline-none focus:border-accent ${errors.courseId ? 'border-error' : 'border-border'
+              }`}
             disabled={isLoadingCourses}
           >
             <option value="">{isLoadingCourses ? 'Loading courses...' : 'Select Course'}</option>
-            {courses.length > 0 ? (
-              courses.map((course) => (
-                <option key={course.courseId} value={course.courseId}>
-                  {course.name} (by {course.lecturerName})
-                </option>
-              ))
-            ) : (
-              <option value="" disabled>
-                No courses available
+            {courses.map((course) => (
+              <option key={course.courseId} value={course.courseId}>
+                {course.courseId} - {course.name}
               </option>
-            )}
+            ))}
           </select>
           {errors.courseId && <p className="text-error text-xs mt-1">{errors.courseId}</p>}
-          {courses.length === 0 && !isLoadingCourses && (
-            <p className="text-sm mt-2">
-              No courses found.{' '}
-              <button
-                type="button"
-                onClick={() => document.getElementById('create-course-section').scrollIntoView({ behavior: 'smooth' })}
-                className="text-primary underline hover:text-accent"
-              >
-                Create a course
-              </button>
-            </p>
-          )}
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Passcode</label>
-          <div className="flex space-x-2">
+          <label className="block text-sm font-medium mb-1">Geofence</label>
+          <select
+            value={formData.geofence}
+            onChange={(e) => setFormData({ ...formData, geofence: e.target.value })}
+            className="w-full p-3 border rounded focus:outline-none focus:border-accent"
+          >
+            {geofenceOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Duration</label>
+          <select
+            value={formData.duration}
+            onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+            className="w-full p-3 border rounded focus:outline-none focus:border-accent"
+          >
+            {durationOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Session Passcode</label>
+          <div className="flex">
             <input
               type="text"
               value={formData.passcode}
-              onChange={(e) => {
-                setFormData({ ...formData, passcode: e.target.value });
-                setErrors((prev) => ({ ...prev, passcode: '' }));
-              }}
-              className={`w-full p-3 border rounded focus:outline-none focus:border-primary ${
-                errors.passcode ? 'border-error' : 'border-border'
-              }`}
-              placeholder="e.g., CS101-123"
+              readOnly
+              className={`flex-grow p-3 border rounded-l focus:outline-none ${errors.passcode ? 'border-error' : 'border-border'
+                }`}
+              placeholder="e.g., CS101-A9J42"
             />
             <button
               type="button"
-              onClick={generatePasscode}
-              className="p-3 bg-secondary text-white rounded hover:bg-accent"
+              onClick={async () => {
+                if (!formData.passcode) return;
+                try {
+                  await navigator.clipboard.writeText(formData.passcode);
+                  showToast('Passcode copied', 'success');
+                } catch {
+                  showToast('Copy failed', 'error');
+                }
+              }}
+              disabled={!formData.passcode}
+              className="p-3 bg-accent text-white border border-accent hover:bg-blue-600 disabled:opacity-50"
             >
-              Generate
+              <i className="far fa-copy"></i>
+            </button>
+            <button
+              type="button"
+              onClick={generatePasscode}
+              className="p-3 bg-accent text-white border border-accent rounded-r hover:bg-blue-600"
+            >
+              <i className="fas fa-sync-alt"></i>
             </button>
           </div>
           {errors.passcode && <p className="text-error text-xs mt-1">{errors.passcode}</p>}
@@ -251,9 +268,8 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
                 setFormData({ ...formData, latitude: e.target.value });
                 setErrors((prev) => ({ ...prev, latitude: '' }));
               }}
-              className={`w-full p-3 border rounded focus:outline-none focus:border-primary ${
-                errors.latitude ? 'border-error' : 'border-border'
-              }`}
+              className={`w-full p-3 border rounded focus:outline-none focus:border-accent ${errors.latitude ? 'border-error' : 'border-border'
+                }`}
               placeholder="Latitude"
               step="any"
             />
@@ -264,9 +280,8 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
                 setFormData({ ...formData, longitude: e.target.value });
                 setErrors((prev) => ({ ...prev, longitude: '' }));
               }}
-              className={`w-full p-3 border rounded focus:outline-none focus:border-primary ${
-                errors.longitude ? 'border-error' : 'border-border'
-              }`}
+              className={`w-full p-3 border rounded focus:outline-none focus:border-accent ${errors.longitude ? 'border-error' : 'border-border'
+                }`}
               placeholder="Longitude"
               step="any"
             />
@@ -274,7 +289,7 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
               type="button"
               onClick={handleGetLocation}
               disabled={isLoadingLocation}
-              className="p-3 bg-primary text-white rounded hover:bg-accent disabled:opacity-50"
+              className="p-3 bg-accent text-white rounded hover:bg-blue-600 disabled:opacity-50"
             >
               {isLoadingLocation ? 'Getting...' : 'Get Location'}
             </button>
@@ -283,111 +298,20 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
             <p className="text-error text-xs mt-1">{errors.latitude || errors.longitude}</p>
           )}
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Geofence Size</label>
-          <Listbox value={formData.geofence} onChange={(value) => setFormData({ ...formData, geofence: value })}>
-            <div className="relative">
-              <Listbox.Button className="w-full p-3 border border-border rounded-lg text-left bg-white focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
-                <span className="block truncate">
-                  {geofenceOptions.find((g) => g.id === formData.geofence).name}
-                </span>
-                <span className="absolute inset-y-0 right-0 flex items-center pr-2">
-                  <ChevronDownIcon className="h-5 w-5 text-gray-400" />
-                </span>
-              </Listbox.Button>
-              <Listbox.Options className="absolute mt-1 w-full bg-white shadow-lg rounded-lg py-1 z-10">
-                {geofenceOptions.map((g) => (
-                  <Listbox.Option
-                    key={g.id}
-                    value={g.id}
-                    className={({ active }) =>
-                      `cursor-pointer select-none relative py-2 pl-10 pr-4 flex items-center ${
-                        active ? 'bg-secondary text-primary' : 'text-gray-900'
-                      }`
-                    }
-                  >
-                    {({ selected }) => (
-                      <>
-                        <svg className="h-6 w-6 mr-2" viewBox="0 0 100 100" dangerouslySetInnerHTML={{ __html: g.svg }} />
-                        <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}>
-                          {g.name}
-                        </span>
-                        {selected && (
-                          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-primary">
-                            <CheckIcon className="h-5 w-5" />
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </Listbox.Option>
-                ))}
-              </Listbox.Options>
-            </div>
-          </Listbox>
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Session Duration</label>
-          <Listbox value={formData.duration} onChange={(value) => setFormData({ ...formData, duration: value })}>
-            <div className="relative">
-              <Listbox.Button className="w-full p-3 border border-border rounded-lg text-left bg-white focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
-                <span className="block truncate">
-                  {durationOptions.find((d) => d.id === formData.duration).name}
-                </span>
-                <span className="absolute inset-y-0 right-0 flex items-center pr-2">
-                  <ChevronDownIcon className="h-5 w-5 text-gray-400" />
-                </span>
-              </Listbox.Button>
-              <Listbox.Options className="absolute mt-1 w-full bg-white shadow-lg rounded-lg py-1 z-10">
-                {durationOptions.map((d) => (
-                  <Listbox.Option
-                    key={d.id}
-                    value={d.id}
-                    className={({ active }) =>
-                      `cursor-pointer select-none relative py-2 pl-10 pr-4 ${
-                        active ? 'bg-secondary text-primary' : 'text-gray-900'
-                      }`
-                    }
-                  >
-                    {({ selected }) => (
-                      <>
-                        <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}>
-                          {d.name}
-                        </span>
-                        {selected && (
-                          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-primary">
-                            <CheckIcon className="h-5 w-5" />
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </Listbox.Option>
-                ))}
-              </Listbox.Options>
-            </div>
-          </Listbox>
-        </div>
         <button
           type="submit"
           disabled={isSubmitting}
-          className={`w-full p-3 bg-primary text-white rounded hover:bg-accent active:scale-95 transition-all duration-200 ${
-            isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
+          className={`w-full p-3 text-white rounded transition duration-200 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-accent hover:bg-blue-600'
+            }`}
         >
           {isSubmitting ? 'Creating...' : 'Create Session'}
         </button>
       </form>
       {toast.show && (
-        <motion.div
-          className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
-            toast.type === 'success' ? 'bg-success text-white' : 'bg-error text-white'
-          }`}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 10 }}
-        >
+        <div className={`fixed bottom-4 right-4 px-4 py-2 rounded shadow-lg text-white ${toast.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
           {toast.message}
-        </motion.div>
+        </div>
       )}
-    </motion.div>
+    </div>
   );
 }

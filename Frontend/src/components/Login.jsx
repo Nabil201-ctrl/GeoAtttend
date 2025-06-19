@@ -1,21 +1,37 @@
-import { useState } from 'react';
+// components/Login.js (create or update)
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import FingerprintJS from 'fingerprintjs2';
 
 export default function Login() {
-  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [formData, setFormData] = useState({ email: '', password: '', deviceId: '' });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    FingerprintJS.get((components) => {
+      const values = components.map(component => component.value);
+      const fingerprint = FingerprintJS.x64hash128(values.join(''), 31);
+      setFormData((prev) => ({ ...prev, deviceId: fingerprint }));
+    });
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
+    if (!formData.deviceId) {
+      setError('Device ID not generated. Please try again.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const response = await axios.post('/api/auth/login', formData);
+      const response = await axios.post('http://localhost:5000/api/auth/login', formData);
       const { token, user } = response.data;
 
       localStorage.setItem('token', token);
@@ -24,6 +40,11 @@ export default function Login() {
         name: user.name,
         email: user.email,
         role: user.role,
+        deviceId: user.deviceId,
+        ...(user.role === 'student' && {
+          matricNumber: user.matricNumber,
+          department: user.department
+        })
       }));
 
       if (user.role === 'student') {
@@ -72,10 +93,8 @@ export default function Login() {
           {error && <p className="text-error text-sm">{error}</p>}
           <button
             type="submit"
-            disabled={isLoading}
-            className={`w-full p-3 bg-primary text-white rounded hover:bg-accent transition-all duration-200 ${
-              isLoading ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+            disabled={isLoading || !formData.deviceId}
+            className={`w-full p-3 bg-primary text-white rounded hover:bg-accent transition-all duration-200 ${isLoading || !formData.deviceId ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {isLoading ? 'Logging in...' : 'Login'}
           </button>

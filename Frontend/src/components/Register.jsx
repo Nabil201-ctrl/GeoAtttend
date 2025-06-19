@@ -1,18 +1,43 @@
-import { useState } from 'react';
+// components/Register.js
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import FingerprintJS from 'fingerprintjs2';
 
 export default function Register() {
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'student' });
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'student',
+    matricNumber: '',
+    department: '',
+    deviceId: ''
+  });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Generate device ID
+    FingerprintJS.get((components) => {
+      const values = components.map(component => component.value);
+      const fingerprint = FingerprintJS.x64hash128(values.join(''), 31);
+      setFormData((prev) => ({ ...prev, deviceId: fingerprint }));
+    });
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+
+    if (!formData.deviceId) {
+      setError('Device ID not generated. Please try again.');
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const response = await axios.post('/api/auth/register', formData);
@@ -24,6 +49,11 @@ export default function Register() {
         name: user.name,
         email: user.email,
         role: user.role,
+        deviceId: user.deviceId,
+        ...(user.role === 'student' && {
+          matricNumber: user.matricNumber,
+          department: user.department
+        })
       }));
 
       if (user.role === 'student') {
@@ -91,13 +121,37 @@ export default function Register() {
               <option value="lecturer">Lecturer</option>
             </select>
           </div>
+          {formData.role === 'student' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1">Matric Number</label>
+                <input
+                  type="text"
+                  value={formData.matricNumber}
+                  onChange={(e) => setFormData({ ...formData, matricNumber: e.target.value })}
+                  className="w-full p-3 border border-border rounded focus:outline-none focus:border-primary"
+                  placeholder="e.g., 23/208CSC/586"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Department</label>
+                <input
+                  type="text"
+                  value={formData.department}
+                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                  className="w-full p-3 border border-border rounded focus:outline-none focus:border-primary"
+                  placeholder="e.g., Computer Science"
+                  required
+                />
+              </div>
+            </>
+          )}
           {error && <p className="text-error text-sm">{error}</p>}
           <button
             type="submit"
-            disabled={isLoading}
-            className={`w-full p-3 bg-primary text-white rounded hover:bg-accent transition-all duration-200 ${
-              isLoading ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+            disabled={isLoading || !formData.deviceId}
+            className={`w-full p-3 bg-primary text-white rounded hover:bg-accent transition-all duration-200 ${isLoading || !formData.deviceId ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {isLoading ? 'Registering...' : 'Register'}
           </button>

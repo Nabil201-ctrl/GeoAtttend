@@ -1,3 +1,4 @@
+// models/Session.js
 import mongoose from 'mongoose';
 
 const sessionSchema = new mongoose.Schema({
@@ -13,7 +14,12 @@ const sessionSchema = new mongoose.Schema({
   passcode: { type: String, required: true },
   startTime: { type: Date, required: true },
   endTime: { type: Date, required: true },
-  attendees: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User', default: [] }],
+  attendees: [{
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    ipAddress: { type: String },
+    deviceId: { type: String }, // New field for device ID
+    timestamp: { type: Date, default: Date.now }
+  }],
 }, { timestamps: true });
 
 export default mongoose.model('Session', sessionSchema);
