@@ -88,7 +88,7 @@ export default function StudentDashboard() {
   };
 
   const handleMarkAttendance = async (e) => {
-    e.preventDefault();
+    e.preventDefault(); 
     if (!passcode || !location.latitude || !location.longitude || !deviceId) {
       showToast('Please enter passcode, get location, and ensure device ID is generated', 'error');
       return;
