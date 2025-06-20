@@ -34,7 +34,7 @@ export default function CreateCourse({ refreshCourses }) {
 
     try {
       const response = await axios.post(
-        '/api/courses',
+        'https://geoattend1.onrender.com/api/courses',
         formData,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },

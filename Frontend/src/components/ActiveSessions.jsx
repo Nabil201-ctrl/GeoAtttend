@@ -25,7 +25,7 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
         return;
       }
       const response = await axios.patch(
-        `http://localhost:5000/api/sessions/${sessionId}/close`, // Use absolute URL
+        `https://geoattend1.onrender.com/api/sessions/${sessionId}/close`, // Use absolute URL
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -130,11 +130,10 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
                   <button
                     onClick={() => handleCloseSession(session._id)}
                     disabled={isClosing[session._id]}
-                    className={`p-2 text-white rounded transition-all duration-200 ${
-                      isClosing[session._id]
+                    className={`p-2 text-white rounded transition-all duration-200 ${isClosing[session._id]
                         ? 'bg-gray-400 cursor-not-allowed'
                         : 'bg-error hover:bg-red-700'
-                    }`}
+                      }`}
                   >
                     {isClosing[session._id] ? 'Closing...' : 'Close'}
                   </button>
@@ -142,11 +141,10 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
                     <button
                       onClick={() => handleDownloadCsv(session._id, session.courseId)}
                       disabled={isDownloading[session._id]}
-                      className={`p-2 text-white rounded transition-all duration-200 ${
-                        isDownloading[session._id]
+                      className={`p-2 text-white rounded transition-all duration-200 ${isDownloading[session._id]
                           ? 'bg-gray-400 cursor-not-allowed'
                           : 'bg-primary hover:bg-accent'
-                      }`}
+                        }`}
                     >
                       {isDownloading[session._id] ? 'Downloading...' : 'Download CSV'}
                     </button>
@@ -159,13 +157,12 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
       )}
       {toast.show && (
         <motion.div
-          className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
-            toast.type === 'success'
+          className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 ${toast.type === 'success'
               ? 'bg-success text-white'
               : toast.type === 'info'
-              ? 'bg-blue-500 text-white'
-              : 'bg-error text-white'
-          }`}
+                ? 'bg-blue-500 text-white'
+                : 'bg-error text-white'
+            }`}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 10 }}

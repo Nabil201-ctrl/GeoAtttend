@@ -31,7 +31,7 @@ export default function Login() {
     }
 
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/login', formData);
+      const response = await axios.post('https://geoattend1.onrender.com/api/auth/login', formData);
       const { token, user } = response.data;
 
       localStorage.setItem('token', token);

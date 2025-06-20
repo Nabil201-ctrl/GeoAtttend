@@ -26,7 +26,7 @@ export default function StudentImport() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post(`/api/courses/${courseId}/students`, formData, {
+      const response = await axios.post(`https://geoattend1.onrender.com/api/courses/${courseId}/students`, formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',

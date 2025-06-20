@@ -42,7 +42,7 @@ export default function StudentDashboard() {
   const fetchEnrolledCourses = async (studentId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/courses', {
+      const response = await axios.get('https://geoattend1.onrender.com/api/courses', {
         headers: { Authorization: `Bearer ${token}` },
         params: { studentId },
       });
@@ -133,7 +133,7 @@ export default function StudentDashboard() {
     try {
       console.log('Sending attendance request:', { passcode, location: { latitude: lat, longitude: lon }, student: user, deviceId, token });
       const response = await axios.post(
-        'http://localhost:5000/api/sessions/attend', // Fixed URL
+        'https://geoattend1.onrender.com/api/sessions/attend', // Fixed URL
         {
           passcode,
           location: { latitude: lat, longitude: lon },

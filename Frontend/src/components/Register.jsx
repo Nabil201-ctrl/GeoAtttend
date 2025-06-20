@@ -40,7 +40,7 @@ export default function Register() {
     }
 
     try {
-      const response = await axios.post('/api/auth/register', formData);
+      const response = await axios.post('https://geoattend1.onrender.com/api/auth/register', formData);
       const { token, user } = response.data;
 
       localStorage.setItem('token', token);
