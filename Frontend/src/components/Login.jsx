@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import FingerprintJS from 'fingerprintjs2';
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
 
 export default function Login() {
   const [formData, setFormData] = useState({ email: '', password: '', deviceId: '' });
