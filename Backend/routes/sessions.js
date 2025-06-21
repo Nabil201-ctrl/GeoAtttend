@@ -10,6 +10,7 @@ import { createObjectCsvWriter } from 'csv-writer';
 import rateLimit from 'express-rate-limit';
 import validator from 'validator'; // For input sanitization
 import mongoose from 'mongoose';
+import moment from 'moment-timezone';
 
 const router = express.Router();
 
@@ -41,7 +42,7 @@ router.post('/', auth(['lecturer']), async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
     if (!validator.isFloat(String(location.latitude), { min: -90, max: 90 }) ||
-        !validator.isFloat(String(location.longitude), { min: -180, max: 180 })) {
+      !validator.isFloat(String(location.longitude), { min: -180, max: 180 })) {
       return res.status(400).json({ message: 'Invalid location coordinates' });
     }
     if (!validator.isFloat(String(radius), { min: 0 })) {
@@ -231,31 +232,26 @@ router.get('/:sessionId/attendees', auth(['lecturer']), async (req, res) => {
 router.post('/attend', auth(['student']), async (req, res) => {
   try {
     const { passcode, location, student, deviceId } = req.body;
-    console.log('Attendance request received:', { passcode, studentId: student?.id, deviceId });
 
     // Input validation
     if (!passcode || !location || !location.latitude || !location.longitude || !student || !student.id || !deviceId) {
-      console.log('Missing fields:', { passcode, location, student, deviceId });
       return res.status(400).json({ message: 'Missing required fields' });
     }
-    if (!isValidObjectId(student.id)) {
+    if (!mongoose.Types.ObjectId.isValid(student.id)) {
       return res.status(400).json({ message: 'Invalid student ID' });
     }
     if (!validator.isFloat(String(location.latitude), { min: -90, max: 90 }) ||
-        !validator.isFloat(String(location.longitude), { min: -180, max: 180 })) {
+      !validator.isFloat(String(location.longitude), { min: -180, max: 180 })) {
       return res.status(400).json({ message: 'Invalid location coordinates' });
     }
 
     const user = await User.findById(student.id).lean();
     if (!user) {
-      console.log(`User not found: ${student.id}`);
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Validate device ID (optional if not set)
-    if (user.deviceId && user.deviceId !== deviceId) {
-      console.log(`Device ID mismatch for user ${student.id}: expected ${user.deviceId}, got ${deviceId}`);
-      return res.status(403).json({ message: 'Device ID mismatch. Cannot mark attendance from this device.' });
+    if (user.deviceId !== deviceId) {
+      return res.status(403).json({ message: 'Device ID mismatch' });
     }
 
     const session = await Session.findOne({
@@ -263,19 +259,16 @@ router.post('/attend', auth(['student']), async (req, res) => {
       endTime: { $gt: new Date() },
     });
     if (!session) {
-      console.log(`Session not found or expired: ${passcode}`);
       return res.status(404).json({ message: 'Session not found or expired' });
     }
 
     const course = await Course.findOne({ courseId: session.courseId });
     if (!course) {
-      console.log(`Course not found: ${session.courseId}`);
       return res.status(404).json({ message: 'Course not found' });
     }
 
     // Auto-enroll student if not enrolled
     if (!course.students.includes(student.id)) {
-      console.log(`Enrolling student ${student.id} in course ${course.courseId}`);
       course.students.push(student.id);
       await course.save();
     }
@@ -287,14 +280,35 @@ router.post('/attend', auth(['student']), async (req, res) => {
       session.location.longitude
     );
     if (distance > session.radius) {
-      console.log(`Outside geofence: ${distance.toFixed(2)}m away`);
       return res.status(400).json({ message: `Outside geofence (${distance.toFixed(2)}m away)` });
     }
 
     const alreadyAttended = session.attendees.some(attendee => attendee.userId.toString() === student.id);
     if (alreadyAttended) {
-      console.log(`Attendance already marked for user ${student.id} in session ${session._id}`);
       return res.status(400).json({ message: 'Attendance already marked' });
+    }
+
+    // Check for rapid location change
+    let status = 'valid';
+    let reason = '';
+    const lastAttendance = await Session.findOne(
+      { 'attendees.userId': student.id },
+      { sort: { 'attendees.timestamp': -1 } }
+    );
+    if (lastAttendance) {
+      const lastAttendee = lastAttendance.attendees.find(a => a.userId.toString() === student.id);
+      const timeDiff = moment().tz('Africa/Lagos').diff(moment(lastAttendee.timestamp), 'minutes');
+      const lastLoc = lastAttendance.location;
+      const distanceMoved = calculateDistance(
+        location.latitude,
+        location.longitude,
+        lastLoc.latitude,
+        lastLoc.longitude
+      );
+      if (timeDiff < 5 && distanceMoved > 1000) { // Moved >1km in <5min
+        status = 'flagged';
+        reason = 'Rapid location change';
+      }
     }
 
     const ipAddress = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
@@ -307,19 +321,16 @@ router.post('/attend', auth(['student']), async (req, res) => {
             ipAddress,
             deviceId,
             timestamp: new Date(),
+            status,
+            reason,
           },
         },
       }
     );
 
-    console.log(`Attendance marked successfully for user ${student.id} in session ${session._id}`);
     res.json({ message: 'Attendance marked successfully', enrolled: !course.students.includes(student.id) });
   } catch (error) {
-    console.error('Attendance error:', {
-      message: error.message,
-      stack: error.stack,
-      body: req.body,
-    });
+    console.error('Attendance error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -336,6 +347,106 @@ router.delete('/cleanup', auth(['lecturer']), async (req, res) => {
   } catch (error) {
     console.error('Error cleaning up sessions:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Attendance logs
+router.get('/logs', auth(['admin']), async (req, res) => {
+  try {
+    const sessions = await Session.find()
+      .populate('attendees.userId', 'name')
+      .lean();
+    const logs = sessions.flatMap(session =>
+      session.attendees.map(attendee => ({
+        _id: attendee._id,
+        userId: attendee.userId,
+        timestamp: attendee.timestamp,
+        deviceId: attendee.deviceId,
+        latitude: session.location.latitude,
+        longitude: session.location.longitude,
+        status: attendee.status || 'valid',
+      }))
+    );
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Get flagged entries
+router.get('/flagged', auth(['admin']), async (req, res) => {
+  try {
+    const flagged = await Session.aggregate([
+      { $unwind: '$attendees' },
+      { $match: { 'attendees.status': 'flagged' } },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'attendees.userId',
+          foreignField: '_id',
+          as: 'user',
+        },
+      },
+      { $unwind: '$user' },
+      {
+        $project: {
+          _id: '$attendees._id',
+          userId: { name: '$user.name' },
+          timestamp: '$attendees.timestamp',
+          reason: '$attendees.reason',
+        },
+      },
+    ]);
+    res.json(flagged);
+  } catch (error) {
+    console.error('Error fetching flagged entries:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+// Calendar events
+router.get('/events', auth(['admin']), async (req, res) => {
+  try {
+    const sessions = await Session.find()
+      .select('courseId courseName startTime endTime')
+      .lean();
+    res.json(sessions);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Review flagged entry
+router.post('/review/:entryId', auth(['admin']), async (req, res) => {
+  try {
+    const { entryId } = req.params;
+    const { action } = req.body; // 'approve' or 'reject'
+
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ message: 'Invalid action' });
+    }
+
+    const session = await Session.findOne({ 'attendees._id': entryId });
+    if (!session) {
+      return res.status(404).json({ message: 'Entry not found' });
+    }
+
+    const attendee = session.attendees.id(entryId);
+    if (!attendee) {
+      return res.status(404).json({ message: 'Attendee not found' });
+    }
+
+    attendee.status = action === 'approve' ? 'valid' : 'rejected';
+    if (action === 'reject') {
+      attendee.reason = attendee.reason || 'Rejected by admin';
+    }
+    await session.save();
+
+    res.json({ message: `Entry ${action}ed`, attendee });
+  } catch (error) {
+    console.error('Error reviewing entry:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

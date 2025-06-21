@@ -10,7 +10,7 @@ router.post('/register', async (req, res) => {
   try {
     const { name, email, password, role, matricNumber, department, deviceId } = req.body;
 
-    if (!['student', 'lecturer', 'admin', 'staff', 'viewer'].includes(role)) {
+    if (!['student', 'lecturer', 'admin'].includes(role)) {
       return res.status(400).json({ message: 'Invalid role' });
     }
     if (!deviceId) {

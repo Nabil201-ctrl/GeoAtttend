@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import FingerprintJS from 'fingerprintjs2';
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -13,18 +13,18 @@ export default function Register() {
     role: 'student',
     matricNumber: '',
     department: '',
-    deviceId: ''
+    deviceId: '',
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Generate device ID
-    FingerprintJS.get((components) => {
-      const values = components.map(component => component.value);
-      const fingerprint = FingerprintJS.x64hash128(values.join(''), 31);
-      setFormData((prev) => ({ ...prev, deviceId: fingerprint }));
+    // Generate device fingerprint
+    FingerprintJS.load().then((fp) => {
+      fp.get().then((result) => {
+        setFormData((prev) => ({ ...prev, deviceId: result.visitorId }));
+      });
     });
   }, []);
 
@@ -34,7 +34,7 @@ export default function Register() {
     setError('');
 
     if (!formData.deviceId) {
-      setError('Device ID not generated. Please try again.');
+      setError('Device fingerprint not generated. Please try again.');
       setIsLoading(false);
       return;
     }
@@ -52,15 +52,17 @@ export default function Register() {
         deviceId: user.deviceId,
         ...(user.role === 'student' && {
           matricNumber: user.matricNumber,
-          department: user.department
-        })
+          department: user.department,
+        }),
       }));
 
-      if (user.role === 'student') {
-        navigate('/student');
-      } else if (user.role === 'lecturer') {
-        navigate('/lecturer');
-      }
+      // Redirect based on role
+      const routes = {
+        student: '/student',
+        lecturer: '/lecturer',
+        admin: '/admin',
+      };
+      navigate(routes[user.role] || '/');
     } catch (err) {
       setError(err.response?.data?.message || 'Registration failed');
     } finally {
@@ -70,84 +72,86 @@ export default function Register() {
 
   return (
     <motion.div
-      className="min-h-screen flex items-center justify-center bg-gray-100"
+      className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
     >
-      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
-        <h2 className="text-2xl font-bold mb-6 text-center">Register</h2>
+      <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md">
+        <h2 className="text-2xl font-bold mb-6 text-center text-gray-900 dark:text-white">Register</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Name</label>
+            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Name</label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full p-3 border border-border rounded focus:outline-none focus:border-primary"
+              className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-primary dark:bg-gray-700 dark:text-white"
               placeholder="e.g., John Doe"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Email</label>
+            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Email</label>
             <input
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full p-3 border border-border rounded focus:outline-none focus:border-primary"
+              className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-primary dark:bg-gray-700 dark:text-white"
               placeholder="e.g., student@example.com"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Password</label>
+            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Password</label>
             <input
               type="password"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              className="w-full p-3 border border-border rounded focus:outline-none focus:border-primary"
+              className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-primary dark:bg-gray-700 dark:text-white"
               placeholder="Enter your password"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Role</label>
+            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Role</label>
             <select
               value={formData.role}
               onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-              className="w-full p-3 border border-border rounded focus:outline-none focus:border-primary"
+              className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-primary dark:bg-gray-700 dark:text-white"
             >
               <option value="student">Student</option>
               <option value="lecturer">Lecturer</option>
+              <option value="admin">Admin</option>
             </select>
           </div>
           {formData.role === 'student' && (
             <>
               <div>
-                <label className="block text-sm font-medium mb-1">Matric Number</label>
+                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Matric Number</label>
                 <input
                   type="text"
                   value={formData.matricNumber}
                   onChange={(e) => setFormData({ ...formData, matricNumber: e.target.value })}
-                  className="w-full p-3 border border-border rounded focus:outline-none focus:border-primary"
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-primary dark:bg-gray-700 dark:text-white"
                   placeholder="e.g., 23/208CSC/586"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Department</label>
+                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Department</label>
                 <input
                   type="text"
                   value={formData.department}
                   onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                  className="w-full p-3 border border-border rounded focus:outline-none focus:border-primary"
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-primary dark:bg-gray-700 dark:text-white"
                   placeholder="e.g., Computer Science"
                   required
                 />
               </div>
             </>
           )}
-          {error && <p className="text-error text-sm">{error}</p>}
+          {error && <p className="text-error text-sm dark:text-red-400">{error}</p>}
           <button
             type="submit"
             disabled={isLoading || !formData.deviceId}
@@ -156,9 +160,9 @@ export default function Register() {
             {isLoading ? 'Registering...' : 'Register'}
           </button>
         </form>
-        <p className="text-sm text-center mt-4">
+        <p className="text-sm text-center mt-4 text-gray-600 dark:text-gray-400">
           Already have an account?{' '}
-          <a href="/" className="text-primary underline hover:text-accent">
+          <a href="/" className="text-primary underline hover:text-accent dark:text-blue-400 dark:hover:text-blue-300">
             Login
           </a>
         </p>

@@ -22,8 +22,10 @@
     "express-rate-limit": "^7.5.0",
     "fingerprintjs2": "^2.1.4",
     "geolib": "^3.3.4",
+    "json2csv": "^6.0.0-alpha.2",
     "jsonwebtoken": "^9.0.2",
     "moment": "^2.30.1",
+    "moment-timezone": "^0.6.0",
     "mongoose": "^8.15.2",
     "multer": "^2.0.1",
     "validator": "^13.15.15"

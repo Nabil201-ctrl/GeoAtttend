@@ -8,3 +8,21 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+:root {
+  --primary: #3b82f6;
+  --secondary: #6b7280;
+  --accent: #2563eb;
+  --border: #d1d5db;
+  --error: #ef4444;
+  --textSecondary: #6b7280;
+}
+
+.dark {
+  --primary: #60a5fa;
+  --secondary: #9ca3af;
+  --accent: #3b82f6;
+  --border: #374151;
+  --error: #f87171;
+  --textSecondary: #9ca3af;
+}
