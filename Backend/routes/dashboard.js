@@ -2,7 +2,7 @@
 import express from 'express';
 import User from '../models/User.js';
 import Session from '../models/Session.js';
-import { auth } from '../middleware/auth.js';
+import {auth} from '../middleware/auth.js';
 import moment from 'moment';
 import { Parser } from 'json2csv';
 

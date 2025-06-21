@@ -172,7 +172,7 @@ export default function EnhancedAdminDashboard() {
 
         // Fetch users
         const usersRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/users`, { headers });
-        setUsers(usersRes.data);
+        setUsers(usersRes.data.users || []); // Extract the 'users' array, fallback to empty array
 
         // Fetch attendance logs
         const logsRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/sessions/logs`, { headers });
@@ -272,7 +272,7 @@ export default function EnhancedAdminDashboard() {
 
       // Refresh users
       const usersRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/users`, { headers });
-      setUsers(usersRes.data);
+      setUsers(usersRes.data.users || []); // Update with the 'users' array
     } catch (error) {
       console.error('Error in user action:', error);
     }

@@ -1,13 +1,15 @@
+// components/ActiveSessions.jsx (updated)
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import ManualAttendance from './ManualAttendance.jsx';
 
 export default function ActiveSessions({ sessions, setActiveSessions }) {
   const navigate = useNavigate();
-  const [csvUrls, setCsvUrls] = useState({}); // Track CSV URLs for closed sessions
-  const [isDownloading, setIsDownloading] = useState({}); // Track download state per session
-  const [isClosing, setIsClosing] = useState({}); // Track closing state per session
+  const [csvUrls, setCsvUrls] = useState({});
+  const [isDownloading, setIsDownloading] = useState({});
+  const [isClosing, setIsClosing] = useState({});
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
   const showToast = (message, type = 'success') => {
@@ -25,15 +27,12 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
         return;
       }
       const response = await axios.patch(
-        `${import.meta.env.VITE_API_URL}/api/sessions/${sessionId}/close`, // Use absolute URL
+        `${import.meta.env.VITE_API_URL}/api/sessions/${sessionId}/close`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // Remove closed session from active sessions
       setActiveSessions((prev) => prev.filter((s) => s._id !== sessionId));
-
-      // Store CSV URL if provided
       if (response.data.csvUrl) {
         setCsvUrls((prev) => ({ ...prev, [sessionId]: response.data.csvUrl }));
         showToast('Session closed successfully. Download available.', 'success');
@@ -59,25 +58,24 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
       }
 
       const response = await axios.get(
-        `http://localhost:5000${csvUrls[sessionId]}`, // Use absolute URL
+        `${import.meta.env.VITE_API_URL}${csvUrls[sessionId]}`,
         {
           headers: { Authorization: `Bearer ${token}` },
-          responseType: 'blob', // Important for handling binary data
+          responseType: 'blob',
         }
       );
 
-      // Create a Blob from the response data
       const blob = new Blob([response.data], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `session_${courseId}_attendees.csv`; // Use courseId for filename
+      link.download = `session_${courseId}_attendees.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      showToast('CSV downloaded successfully.', 'success');
+      showToast('CSV downloaded successfully.');
     } catch (error) {
       console.error('Failed to download CSV:', error);
       showToast(error.response?.data?.message || 'Failed to download CSV.', 'error');
@@ -150,6 +148,9 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
                     </button>
                   )}
                 </div>
+              </div>
+              <div className="mt-4">
+                <ManualAttendance courseId={session.courseId} sessionId={session._id} />
               </div>
             </li>
           ))}

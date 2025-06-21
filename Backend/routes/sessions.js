@@ -2,7 +2,7 @@ import express from 'express';
 import Session from '../models/Session.js';
 import Course from '../models/Course.js';
 import User from '../models/User.js';
-import auth from '../middleware/auth.js';
+import {auth} from '../middleware/auth.js';
 import { calculateDistance } from '../utils/geolocation.js';
 import path from 'path';
 import fs from 'fs/promises'; // Use promises for async file operations
@@ -89,15 +89,47 @@ router.get('/active', auth(['lecturer']), async (req, res) => {
     const sessions = await Session.find({
       lecturerId: req.user.id,
       endTime: { $gt: new Date() },
-    })
-      .select('courseId courseName department startTime endTime passcode attendees')
-      .lean(); // Optimize query
-
-    console.log(`Fetched ${sessions.length} active sessions for lecturer ${req.user.id}`);
+    }).lean();
     res.json(sessions);
   } catch (error) {
     console.error('Error fetching active sessions:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.patch('/:sessionId/close', auth(['lecturer']), async (req, res) => {
+  try {
+    const session = await Session.findById(req.params.sessionId);
+    if (!session || session.lecturerId.toString() !== req.user.id) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+    session.endTime = new Date();
+    await session.save();
+
+    if (session.attendees.length > 0) {
+      const csv = new Parser().parse(session.attendees.map(a => ({
+        UserID: a.userId,
+        Timestamp: a.timestamp,
+        Status: a.status,
+        Reason: a.reason || '',
+      })));
+      const filename = `session_${session.courseId}_${Date.now()}.csv`;
+      // Store CSV in GridFS
+      const gfs = new mongoose.mongo.GridFSBucket(mongoose.connection.db, { bucketName: 'uploads' });
+      const uploadStream = gfs.openUploadStream(filename, { contentType: 'text/csv' });
+      uploadStream.write(csv);
+      uploadStream.end();
+      await new Promise((resolve, reject) => {
+        uploadStream.on('finish', resolve);
+        uploadStream.on('error', reject);
+      });
+      res.json({ message: 'Session closed', csvUrl: `/api/courses/materials/${uploadStream.id}` });
+    } else {
+      res.json({ message: 'Session closed, no attendees' });
+    }
+  } catch (error) {
+    console.error('Error closing session:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

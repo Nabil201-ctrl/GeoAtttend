@@ -27,15 +27,15 @@ router.get('/', auth(['admin']), async (req, res) => {
 // Get device fingerprints
 router.get('/devices', auth(['admin']), async (req, res) => {
   try {
-    const devices = await User.find()
+    const users = await User.find()
       .select('name deviceId updatedAt')
-      .lean()
-      .map(user => ({
-        _id: user._id,
-        userId: { name: user.name },
-        deviceId: user.deviceId,
-        lastUsed: user.updatedAt,
-      }));
+      .lean(); // Execute the query to get an array of plain objects
+    const devices = users.map(user => ({
+      _id: user._id,
+      userId: { name: user.name },
+      deviceId: user.deviceId,
+      lastUsed: user.updatedAt,
+    }));
     res.json(devices);
   } catch (error) {
     console.error('Error fetching devices:', error);
