@@ -50,7 +50,7 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
           navigate('/');
           return;
         }
-        const response = await axios.get('https://geoattend1.onrender.com/api/courses', {
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setCourses(response.data);
@@ -137,7 +137,7 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
       };
-      const response = await axios.post('https://geoattend1.onrender.com/api/sessions', payload, {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/sessions`, payload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setActiveSessions((prev) => [...prev, response.data]);

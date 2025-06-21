@@ -25,7 +25,7 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
         return;
       }
       const response = await axios.patch(
-        `https://geoattend1.onrender.com/api/sessions/${sessionId}/close`, // Use absolute URL
+        `${import.meta.env.VITE_API_URL}/api/sessions/${sessionId}/close`, // Use absolute URL
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );

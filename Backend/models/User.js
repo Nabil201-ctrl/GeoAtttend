@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ['student', 'lecturer'], required: true },
+  role: { type: String, enum: ['student', 'lecturer', 'admin'], required: true },
   matricNumber: {
     type: String,
     required: function () { return this.role === 'student'; },
@@ -16,7 +16,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: function () { return this.role === 'student'; }
   },
-  deviceId: { type: String, required: true } // New field for device ID
+  deviceId: { type: String, required: true }
 }, { timestamps: true });
 
 export default mongoose.model('User', userSchema);

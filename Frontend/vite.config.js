@@ -7,7 +7,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'https://geoattend1.onrender.com',
+        target: `${import.meta.env.VITE_API_URL}`,
         changeOrigin: true,
       },
     },

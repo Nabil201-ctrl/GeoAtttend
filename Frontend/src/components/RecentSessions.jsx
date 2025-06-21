@@ -49,7 +49,7 @@ export default function RecentSessions({ setActiveSessions, refreshCourses, show
           navigate('/');
           return;
         }
-        const response = await axios.get(`https://geoattend1.onrender.com/api/courses`, {
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const coursesData = Array.isArray(response.data.data) ? response.data.data : [];
@@ -165,7 +165,7 @@ export default function RecentSessions({ setActiveSessions, refreshCourses, show
       const expiresAt = new Date(Date.now() + selectedDuration.minutes * 60 * 1000);
 
       const response = await axios.post(
-        'https://geoattend1.onrender.com/api/fences',
+        `${import.meta.env.VITE_API_URL}/api/fences`,
         {
           courseCode: formData.courseCode,
           radius: selectedGeofence.radius,

@@ -25,12 +25,12 @@ export default function LecturerDashboard() {
           return;
         }
 
-        const sessionsResponse = await axios.get('https://geoattend1.onrender.com/api/sessions/active', {
+        const sessionsResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/sessions/active`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setActiveSessions(sessionsResponse.data);
 
-        const coursesResponse = await axios.get('https://geoattend1.onrender.com/api/courses', {
+        const coursesResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setCourses(coursesResponse.data);
@@ -52,7 +52,7 @@ export default function LecturerDashboard() {
   const refreshCourses = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('https://geoattend1.onrender.com/api/courses', {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setCourses(response.data);

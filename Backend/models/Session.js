@@ -17,8 +17,10 @@ const sessionSchema = new mongoose.Schema({
   attendees: [{
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     ipAddress: { type: String },
-    deviceId: { type: String }, // New field for device ID
-    timestamp: { type: Date, default: Date.now }
+    deviceId: { type: String },
+    timestamp: { type: Date, default: Date.now },
+    status: { type: String, enum: ['valid', 'flagged'], default: 'valid' },
+    reason: { type: String },
   }],
 }, { timestamps: true });
 
