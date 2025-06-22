@@ -24,19 +24,43 @@ export default function StudentDashboard() {
       setDeviceId(fingerprint);
     });
 
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const parsedUser = JSON.parse(storedUser);
-      setUser(parsedUser);
-      if (parsedUser.role !== 'student') {
-        showToast('Only students can access this dashboard.', 'error');
+    const fetchUserAndCourses = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showToast('Session expired. Please log in again.', 'error');
         navigate('/');
         return;
       }
-      fetchEnrolledCourses(parsedUser.id);
-    } else {
-      navigate('/');
-    }
+
+      try {
+        // Verify token is valid and belongs to a student
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const decoded = JSON.parse(atob(base64));
+        
+        if (decoded.role !== 'student') {
+          showToast('Only students can access this dashboard.', 'error');
+          navigate('/');
+          return;
+        }
+
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          await fetchEnrolledCourses(parsedUser.id);
+        } else {
+          showToast('User data not found. Please log in again.', 'error');
+          navigate('/');
+        }
+      } catch (error) {
+        console.error('Error verifying token:', error);
+        showToast('Invalid session. Please log in again.', 'error');
+        navigate('/');
+      }
+    };
+
+    fetchUserAndCourses();
   }, [navigate]);
 
   const fetchEnrolledCourses = async (studentId) => {
@@ -86,31 +110,10 @@ export default function StudentDashboard() {
       showToast('Please enter passcode, get location, and ensure device ID is generated', 'error');
       return;
     }
-    if (!user) {
-      showToast('User data not found. Please log in again.', 'error');
-      navigate('/');
-      return;
-    }
 
     const token = localStorage.getItem('token');
     if (!token) {
       showToast('Authentication token missing. Please log in again.', 'error');
-      navigate('/');
-      return;
-    }
-
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const decoded = JSON.parse(atob(base64));
-      if (decoded.role !== 'student') {
-        showToast('Token role mismatch. Please log in as a student.', 'error');
-        navigate('/');
-        return;
-      }
-    } catch (error) {
-      console.error('Failed to decode token:', error);
-      showToast('Invalid token format. Please log in again.', 'error');
       navigate('/');
       return;
     }
@@ -124,9 +127,8 @@ export default function StudentDashboard() {
 
     setIsSubmitting(true);
     try {
-      console.log('Sending attendance request:', { passcode, location: { latitude: lat, longitude: lon }, student: user, deviceId, token });
       const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/sessions/attend`, // Fixed URL
+        `${import.meta.env.VITE_API_URL}/api/sessions/attend`,
         {
           passcode,
           location: { latitude: lat, longitude: lon },
@@ -135,6 +137,7 @@ export default function StudentDashboard() {
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      
       if (response.data.enrolled) {
         showToast('Attendance marked successfully! You are now enrolled in this course.', 'success');
         fetchEnrolledCourses(user.id);
@@ -145,15 +148,18 @@ export default function StudentDashboard() {
       setLocation({ latitude: '', longitude: '' });
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Failed to mark attendance. Please try again.';
-      console.error('Attendance error:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: errorMessage,
-      });
+      console.error('Attendance error:', errorMessage);
       showToast(errorMessage, 'error');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/');
+    showToast('Logged out successfully', 'success');
   };
 
   return (
@@ -166,11 +172,7 @@ export default function StudentDashboard() {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-xl font-bold">Student Dashboard</h1>
           <button
-            onClick={() => {
-              localStorage.removeItem('token');
-              localStorage.removeItem('user');
-              navigate('/');
-            }}
+            onClick={handleLogout}
             className="p-2 bg-error text-white rounded hover:bg-red-700"
           >
             Logout
