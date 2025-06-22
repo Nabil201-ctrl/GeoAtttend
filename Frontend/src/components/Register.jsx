@@ -130,7 +130,7 @@ export default function Register() {
                   value={formData.matricNumber}
                   onChange={(e) => setFormData({ ...formData, matricNumber: e.target.value })}
                   className="w-full p-3 border border-border rounded focus:outline-none focus:border-primary"
-                  placeholder="e.g., 23/208CSC/586"
+                  placeholder="e.g., 22/208EEE/563"
                   required
                 />
               </div>

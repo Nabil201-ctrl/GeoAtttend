@@ -103,97 +103,36 @@ router.get('/active', auth(['lecturer']), async (req, res) => {
 
 // PATCH: Close a session and generate CSV
 // PATCH: Close a session and generate CSV and PDF
+// routes/sessions.js
 router.patch('/:id/close', auth(['lecturer']), async (req, res) => {
   try {
     const { id } = req.params;
-    if (!isValidObjectId(id)) {
-      return res.status(400).json({ message: 'Invalid session ID' });
-    }
+    const session = await Session.findOneAndUpdate(
+      { _id: id, lecturerId: req.user.id },
+      { 
+        status: 'closed',
+        closedAt: new Date(),
+        closedBy: req.user.id,
+        endTime: new Date() // Ensure session ends now
+      },
+      { new: true }
+    ).populate('attendees.userId', 'name department matricNumber');
 
-    const session = await Session.findOne({ _id: id, lecturerId: req.user.id })
-      .populate('attendees.userId', 'name department matricNumber')
-      .lean();
     if (!session) {
       return res.status(404).json({ message: 'Session not found' });
     }
 
-    // Update endTime and mark report as generated
-    await Session.updateOne(
-      { _id: id },
-      { endTime: new Date(), reportGenerated: true }
-    );
-
-    // Generate CSV and PDF for attendees
-    const attendees = session.attendees.map(attendee => ({
-      name: attendee.userId?.name || 'Unknown',
-      department: attendee.userId?.department || 'N/A',
-      matricNumber: attendee.userId?.matricNumber || 'N/A',
-      timestamp: attendee.timestamp?.toLocaleString() || 'N/A',
-    }));
-
-    if (attendees.length === 0) {
-      console.log(`Session ${id} closed with no attendees`);
-      return res.json({ message: 'Session closed, no attendees to export' });
-    }
-
-    // Ensure uploads directory exists
-    const uploadsDir = path.join('uploads');
-    await fs.mkdir(uploadsDir, { recursive: true });
-
-    // Define file paths
-    const csvFilePath = path.join(uploadsDir, `session_${id}_attendees.csv`);
-    const pdfFilePath = path.join(uploadsDir, `session_${id}_attendees.pdf`);
-
-    // Create CSV
-    const csvWriter = createObjectCsvWriter({
-      path: csvFilePath,
-      header: [
-        { id: 'name', title: 'Name' },
-        { id: 'department', title: 'Department' },
-        { id: 'matricNumber', title: 'Matric Number' },
-        { id: 'timestamp', title: 'Timestamp' },
-      ],
-    });
-    await csvWriter.writeRecords(attendees);
-    console.log(`CSV generated for session ${id} at ${csvFilePath}`);
-
-    // Create PDF
-    const doc = new PDFDocument();
-    doc.pipe(fs.createWriteStream(pdfFilePath));
-    doc.fontSize(16).text(`Attendance Report for ${session.courseName}`, { align: 'center' });
-    doc.moveDown();
-    doc.fontSize(12).text(`Session ID: ${session._id}`);
-    doc.text(`Course: ${session.courseId}`);
-    doc.text(`Date: ${session.startTime.toLocaleString()}`);
-    doc.moveDown();
-    attendees.forEach((attendee, index) => {
-      doc.text(
-        `${index + 1}. Name: ${attendee.name}, Matric: ${attendee.matricNumber}, Dept: ${attendee.department}, Time: ${attendee.timestamp}`
-      );
-      doc.moveDown(0.5);
-    });
-    doc.end();
-    console.log(`PDF generated for session ${id} at ${pdfFilePath}`);
-
-    // Update session with file paths
-    await Session.updateOne(
-      { _id: id },
-      {
-        reportFiles: {
-          csv: `/api/sessions/download/${id}/csv`,
-          pdf: `/api/sessions/download/${id}/pdf`,
-        },
-      }
-    );
+    // Generate reports (CSV/PDF) as before...
+    const reportData = await generateSessionReports(session);
 
     res.json({
-      message: 'Session closed and reports generated',
+      message: 'Session closed successfully',
       csvUrl: `/api/sessions/download/${id}/csv`,
       pdfUrl: `/api/sessions/download/${id}/pdf`,
+      ...reportData
     });
   } catch (error) {
-    console.error('Error closing session:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Error closing session', error: error.message });
   }
 });
 
@@ -234,6 +173,37 @@ router.get('/download/:sessionId/:format', auth(['lecturer']), downloadLimiter, 
   }
 });
 
+// routes/sessions.js
+router.get('/:id/analytics', auth(['lecturer']), async (req, res) => {
+  try {
+    const session = await Session.findOne({
+      _id: req.params.id,
+      lecturerId: req.user.id
+    }).populate('attendees.userId', 'name department matricNumber');
+
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+
+    // Calculate department stats
+    const departmentStats = {};
+    session.attendees.forEach(attendee => {
+      const dept = attendee.userId?.department || 'Unknown';
+      departmentStats[dept] = (departmentStats[dept] || 0) + 1;
+    });
+
+    res.json({
+      courseName: session.courseName,
+      totalAttendees: session.attendees.length,
+      departmentStats,
+      startTime: session.startTime,
+      endTime: session.endTime,
+      timeRemaining: session.endTime - Date.now()
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching analytics', error: error.message });
+  }
+});
 
 // GET: Fetch closed or expired sessions
 router.get('/closed', auth(['lecturer']), async (req, res) => {
@@ -372,6 +342,14 @@ router.post('/attend', auth(['student']), async (req, res) => {
       console.log(`User not found: ${student.id}`);
       return res.status(404).json({ message: 'User not found' });
     }
+
+    // Strict device check
+    if (user.deviceId !== deviceId) {
+      return res.status(403).json({
+        message: 'Cannot mark attendance from this device'
+      });
+    }
+
 
     // Validate device ID (optional if not set)
     if (user.deviceId && user.deviceId !== deviceId) {

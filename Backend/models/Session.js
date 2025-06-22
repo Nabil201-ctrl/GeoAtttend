@@ -16,11 +16,19 @@ const sessionSchema = new mongoose.Schema({
   endTime: { type: Date, required: true },
   attendees: [{
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    ipAddress: { type: String },
-    deviceId: { type: String },
+    ipAddress: { type: String, required: true },
+    deviceId: { type: String, required: true },
     timestamp: { type: Date, default: Date.now },
-    status: { type: String, enum: ['valid', 'flagged'], default: 'valid' },
+    status: {
+      type: String,
+      enum: ['valid', 'flagged', 'suspicious'],
+      default: 'valid'
+    },
     reason: { type: String },
+    location: {
+      latitude: Number,
+      longitude: Number,
+    }
   }],
   reportGenerated: { type: Boolean, default: false }, // Track if report is generated
   reportFiles: {
