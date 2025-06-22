@@ -60,42 +60,22 @@ export default function StudentDashboard() {
 
   const handleGetLocation = () => {
     setIsLoadingLocation(true);
-
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setFormData((prev) => ({
-            ...prev,
+          setLocation({
             latitude: position.coords.latitude.toFixed(6),
             longitude: position.coords.longitude.toFixed(6),
-          }));
-          setIsLoadingLocation(false);
-          setErrors((prev) => ({ ...prev, latitude: '', longitude: '' }));
-        },
-        (error) => {
-          console.error('Geolocation Error:', error); // log it to browser console
-
-          let message = 'Failed to get location';
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              message = 'User denied the request for Geolocation.';
-              break;
-            case error.POSITION_UNAVAILABLE:
-              message = 'Location information is unavailable.';
-              break;
-            case error.TIMEOUT:
-              message = 'The request to get user location timed out.';
-              break;
-            default:
-              message = 'An unknown error occurred while retrieving location.';
-          }
-          showToast(message, 'error');
+          });
           setIsLoadingLocation(false);
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // this helps accuracy on mobile
+        () => {
+          showToast('Failed to get location', 'error');
+          setIsLoadingLocation(false);
+        }
       );
     } else {
-      showToast('Geolocation is not supported by your browser.', 'error');
+      showToast('Geolocation not supported', 'error');
       setIsLoadingLocation(false);
     }
   };
