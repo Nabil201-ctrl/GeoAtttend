@@ -7,7 +7,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: `${import.meta.env.VITE_API_URL}`,
+        target: `http://localhost:5000`, // Backend API URL
         changeOrigin: true,
       },
     },

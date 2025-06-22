@@ -22,6 +22,12 @@ const sessionSchema = new mongoose.Schema({
     status: { type: String, enum: ['valid', 'flagged'], default: 'valid' },
     reason: { type: String },
   }],
+}, { timestamps: true }),
+reportGenerated: { type: Boolean, default: false }, // Track if report is generated
+reportFiles: {
+  csv: { type: String }, // Path to CSV file
+  pdf: { type: String }, // Path to PDF file
+},
 }, { timestamps: true });
 
 export default mongoose.model('Session', sessionSchema);

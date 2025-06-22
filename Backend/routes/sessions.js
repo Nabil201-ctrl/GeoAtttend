@@ -8,6 +8,7 @@ import path from 'path';
 import fs from 'fs/promises'; // Use promises for async file operations
 import { createObjectCsvWriter } from 'csv-writer';
 import rateLimit from 'express-rate-limit';
+import PDFDocument from 'pdfkit';
 import validator from 'validator'; // For input sanitization
 import mongoose from 'mongoose';
 
@@ -41,7 +42,7 @@ router.post('/', auth(['lecturer']), async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
     if (!validator.isFloat(String(location.latitude), { min: -90, max: 90 }) ||
-        !validator.isFloat(String(location.longitude), { min: -180, max: 180 })) {
+      !validator.isFloat(String(location.longitude), { min: -180, max: 180 })) {
       return res.status(400).json({ message: 'Invalid location coordinates' });
     }
     if (!validator.isFloat(String(radius), { min: 0 })) {
@@ -101,6 +102,7 @@ router.get('/active', auth(['lecturer']), async (req, res) => {
 });
 
 // PATCH: Close a session and generate CSV
+// PATCH: Close a session and generate CSV and PDF
 router.patch('/:id/close', auth(['lecturer']), async (req, res) => {
   try {
     const { id } = req.params;
@@ -115,14 +117,18 @@ router.patch('/:id/close', auth(['lecturer']), async (req, res) => {
       return res.status(404).json({ message: 'Session not found' });
     }
 
-    // Update endTime
-    await Session.updateOne({ _id: id }, { endTime: new Date() });
+    // Update endTime and mark report as generated
+    await Session.updateOne(
+      { _id: id },
+      { endTime: new Date(), reportGenerated: true }
+    );
 
-    // Generate CSV for attendees
+    // Generate CSV and PDF for attendees
     const attendees = session.attendees.map(attendee => ({
       name: attendee.userId?.name || 'Unknown',
       department: attendee.userId?.department || 'N/A',
       matricNumber: attendee.userId?.matricNumber || 'N/A',
+      timestamp: attendee.timestamp?.toLocaleString() || 'N/A',
     }));
 
     if (attendees.length === 0) {
@@ -134,26 +140,56 @@ router.patch('/:id/close', auth(['lecturer']), async (req, res) => {
     const uploadsDir = path.join('uploads');
     await fs.mkdir(uploadsDir, { recursive: true });
 
-    // Define CSV file path
+    // Define file paths
     const csvFilePath = path.join(uploadsDir, `session_${id}_attendees.csv`);
+    const pdfFilePath = path.join(uploadsDir, `session_${id}_attendees.pdf`);
 
-    // Create CSV writer
+    // Create CSV
     const csvWriter = createObjectCsvWriter({
       path: csvFilePath,
       header: [
         { id: 'name', title: 'Name' },
         { id: 'department', title: 'Department' },
         { id: 'matricNumber', title: 'Matric Number' },
+        { id: 'timestamp', title: 'Timestamp' },
       ],
     });
-
-    // Write CSV file
     await csvWriter.writeRecords(attendees);
     console.log(`CSV generated for session ${id} at ${csvFilePath}`);
 
+    // Create PDF
+    const doc = new PDFDocument();
+    doc.pipe(fs.createWriteStream(pdfFilePath));
+    doc.fontSize(16).text(`Attendance Report for ${session.courseName}`, { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(12).text(`Session ID: ${session._id}`);
+    doc.text(`Course: ${session.courseId}`);
+    doc.text(`Date: ${session.startTime.toLocaleString()}`);
+    doc.moveDown();
+    attendees.forEach((attendee, index) => {
+      doc.text(
+        `${index + 1}. Name: ${attendee.name}, Matric: ${attendee.matricNumber}, Dept: ${attendee.department}, Time: ${attendee.timestamp}`
+      );
+      doc.moveDown(0.5);
+    });
+    doc.end();
+    console.log(`PDF generated for session ${id} at ${pdfFilePath}`);
+
+    // Update session with file paths
+    await Session.updateOne(
+      { _id: id },
+      {
+        reportFiles: {
+          csv: `/api/sessions/download/${id}/csv`,
+          pdf: `/api/sessions/download/${id}/pdf`,
+        },
+      }
+    );
+
     res.json({
-      message: 'Session closed and CSV generated',
-      csvUrl: `/api/sessions/download/${id}`,
+      message: 'Session closed and reports generated',
+      csvUrl: `/api/sessions/download/${id}/csv`,
+      pdfUrl: `/api/sessions/download/${id}/pdf`,
     });
   } catch (error) {
     console.error('Error closing session:', error);
@@ -161,12 +197,15 @@ router.patch('/:id/close', auth(['lecturer']), async (req, res) => {
   }
 });
 
-// GET: Download CSV
-router.get('/download/:sessionId', auth(['lecturer']), downloadLimiter, async (req, res) => {
+// GET: Download CSV or PDF
+router.get('/download/:sessionId/:format', auth(['lecturer']), downloadLimiter, async (req, res) => {
   try {
-    const { sessionId } = req.params;
+    const { sessionId, format } = req.params;
     if (!isValidObjectId(sessionId)) {
       return res.status(400).json({ message: 'Invalid session ID' });
+    }
+    if (!['csv', 'pdf'].includes(format)) {
+      return res.status(400).json({ message: 'Invalid format. Use csv or pdf.' });
     }
 
     const session = await Session.findOne({ _id: sessionId, lecturerId: req.user.id }).lean();
@@ -174,26 +213,108 @@ router.get('/download/:sessionId', auth(['lecturer']), downloadLimiter, async (r
       return res.status(404).json({ message: 'Session not found' });
     }
 
-    const csvFilePath = path.join('uploads', `session_${sessionId}_attendees.csv`);
+    const filePath = path.join('uploads', `session_${sessionId}_attendees.${format}`);
     try {
-      await fs.access(csvFilePath); // Check if file exists
+      await fs.access(filePath); // Check if file exists
     } catch {
-      return res.status(404).json({ message: 'CSV file not found' });
+      return res.status(404).json({ message: `${format.toUpperCase()} file not found` });
     }
 
-    res.download(csvFilePath, `session_${session.courseId}_attendees.csv`, (err) => {
+    res.download(filePath, `session_${session.courseId}_attendees.${format}`, (err) => {
       if (err) {
-        console.error('Error downloading CSV:', err);
-        return res.status(500).json({ message: 'Error downloading CSV' });
+        console.error(`Error downloading ${format}:`, err);
+        return res.status(500).json({ message: `Error downloading ${format}` });
       }
-      console.log(`CSV downloaded for session ${sessionId}`);
-      // Do not delete file to allow multiple downloads
-      // fs.unlink(csvFilePath, (unlinkErr) => {
-      //   if (unlinkErr) console.error('Error deleting CSV:', unlinkErr);
-      // });
+      console.log(`${format.toUpperCase()} downloaded for session ${sessionId}`);
+      // Keep files for future downloads, or implement cleanup logic if needed
     });
   } catch (error) {
-    console.error('Error serving CSV:', error);
+    console.error(`Error serving ${req.params.format}:`, error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+
+// GET: Fetch closed or expired sessions
+router.get('/closed', auth(['lecturer']), async (req, res) => {
+  try {
+    const sessions = await Session.find({
+      lecturerId: req.user.id,
+      endTime: { $lte: new Date() },
+    })
+      .select('courseId courseName department startTime endTime passcode attendees reportFiles')
+      .lean();
+    console.log(`Fetched ${sessions.length} closed sessions for lecturer ${req.user.id}`);
+    res.json(sessions);
+  } catch (error) {
+    console.error('Error fetching closed sessions:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// POST: Manually add student to session attendance
+router.post('/:sessionId/manual-attendance', auth(['lecturer']), async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { matricNumber, reason } = req.body;
+
+    if (!isValidObjectId(sessionId)) {
+      return res.status(400).json({ message: 'Invalid session ID' });
+    }
+    if (!matricNumber) {
+      return res.status(400).json({ message: 'Matric number is required' });
+    }
+
+    const session = await Session.findOne({ _id: sessionId, lecturerId: req.user.id });
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+
+    if (session.endTime < new Date() && session.reportGenerated) {
+      return res.status(400).json({ message: 'Cannot modify attendance for closed session with generated reports' });
+    }
+
+    const course = await Course.findOne({ courseId: session.courseId });
+    if (!course) {
+      return res.status(404).json({ message: 'Course not found' });
+    }
+
+    const student = await User.findOne({ matricNumber, role: 'student' });
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    if (!course.students.includes(student._id)) {
+      course.students.push(student._id);
+      await course.save();
+      console.log(`Enrolled student ${student._id} in course ${course.courseId}`);
+    }
+
+    const alreadyAttended = session.attendees.some(attendee => attendee.userId.toString() === student._id.toString());
+    if (alreadyAttended) {
+      return res.status(400).json({ message: 'Student already marked as attended' });
+    }
+
+    await Session.updateOne(
+      { _id: session._id },
+      {
+        $push: {
+          attendees: {
+            userId: student._id,
+            ipAddress: 'manual',
+            deviceId: 'manual',
+            timestamp: new Date(),
+            status: 'valid',
+            reason: reason || 'Manual entry by lecturer',
+          },
+        },
+      }
+    );
+
+    console.log(`Manually marked attendance for student ${student._id} in session ${session._id}`);
+    res.json({ message: 'Attendance marked successfully' });
+  } catch (error) {
+    console.error('Manual attendance error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -242,7 +363,7 @@ router.post('/attend', auth(['student']), async (req, res) => {
       return res.status(400).json({ message: 'Invalid student ID' });
     }
     if (!validator.isFloat(String(location.latitude), { min: -90, max: 90 }) ||
-        !validator.isFloat(String(location.longitude), { min: -180, max: 180 })) {
+      !validator.isFloat(String(location.longitude), { min: -180, max: 180 })) {
       return res.status(400).json({ message: 'Invalid location coordinates' });
     }
 
