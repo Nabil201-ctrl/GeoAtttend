@@ -60,35 +60,48 @@ export default function StudentDashboard() {
 
   const handleGetLocation = () => {
     setIsLoadingLocation(true);
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const latitude = position.coords.latitude.toFixed(6);
-          const longitude = position.coords.longitude.toFixed(6);
-          console.log('Browser location:', { latitude, longitude });
-          setLocation({ latitude, longitude });
+          setFormData((prev) => ({
+            ...prev,
+            latitude: position.coords.latitude.toFixed(6),
+            longitude: position.coords.longitude.toFixed(6),
+          }));
           setIsLoadingLocation(false);
+          setErrors((prev) => ({ ...prev, latitude: '', longitude: '' }));
         },
         (error) => {
+          console.error('Geolocation Error:', error); // log it to browser console
+
           let message = 'Failed to get location';
-          if (error.code === error.PERMISSION_DENIED) {
-            message = 'Location access denied. Please enable it in your browser settings.';
-          } else if (error.code === error.POSITION_UNAVAILABLE) {
-            message = 'Location information is unavailab-*/*9le.';
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              message = 'User denied the request for Geolocation.';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              message = 'Location information is unavailable.';
+              break;
+            case error.TIMEOUT:
+              message = 'The request to get user location timed out.';
+              break;
+            default:
+              message = 'An unknown error occurred while retrieving location.';
           }
           showToast(message, 'error');
           setIsLoadingLocation(false);
         },
-        { enableHighAccuracy: true, timeout: 10000 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // this helps accuracy on mobile
       );
     } else {
-      showToast('Geolocation is not supported by this browser', 'error');
+      showToast('Geolocation is not supported by your browser.', 'error');
       setIsLoadingLocation(false);
     }
   };
 
   const handleMarkAttendance = async (e) => {
-    e.preventDefault(); 
+    e.preventDefault();
     if (!passcode || !location.latitude || !location.longitude || !deviceId) {
       showToast('Please enter passcode, get location, and ensure device ID is generated', 'error');
       return;
