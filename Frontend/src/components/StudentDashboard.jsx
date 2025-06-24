@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import FingerprintJS from 'fingerprintjs2';
+import * as FingerprintJS from '@fingerprintjs/fingerprintjs';
 
 export default function StudentDashboard() {
   const [passcode, setPasscode] = useState('');
@@ -17,11 +17,20 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    FingerprintJS.get((components) => {
-      const values = components.map((component) => component.value);
-      const fingerprint = FingerprintJS.x64hash128(values.join(''), 31);
-      setDeviceId(fingerprint);
-    });
+    let fpPromise;
+
+    const initializeFingerprint = async () => {
+      try {
+        const fp = await FingerprintJS.load();
+        const result = await fp.get();
+        setDeviceId(result.visitorId);
+      } catch (error) {
+        console.error('Failed to generate device ID:', error);
+        showToast('Failed to initialize device identification. Please refresh the page.', 'error');
+      }
+    };
+
+    initializeFingerprint();
 
     const fetchUserAndCourses = async () => {
       const token = localStorage.getItem('token');
@@ -35,6 +44,13 @@ export default function StudentDashboard() {
         const base64Url = token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const decoded = JSON.parse(atob(base64));
+
+        // Check token expiration
+        if (decoded.exp && decoded.exp * 1000 < Date.now()) {
+          showToast('Session expired. Please log in again.', 'error');
+          navigate('/');
+          return;
+        }
 
         if (decoded.role !== 'student') {
           showToast('Only students can access this dashboard.', 'error');
@@ -59,6 +75,10 @@ export default function StudentDashboard() {
     };
 
     fetchUserAndCourses();
+
+    return () => {
+      // Cleanup if needed
+    };
   }, [navigate]);
 
   const fetchEnrolledCourses = async (studentId) => {
@@ -110,9 +130,19 @@ export default function StudentDashboard() {
 
         navigator.geolocation.getCurrentPosition(
           (position) => {
+            const lat = position.coords.latitude.toFixed(6);
+            const lng = position.coords.longitude.toFixed(6);
+
+            // Check for invalid coordinates (0,0 or null island)
+            if (lat === '0.000000' && lng === '0.000000') {
+              showToast('Invalid location detected. Please try again in a different location.', 'error');
+              setIsLoadingLocation(false);
+              return;
+            }
+
             setLocation({
-              latitude: position.coords.latitude.toFixed(6),
-              longitude: position.coords.longitude.toFixed(6),
+              latitude: lat,
+              longitude: lng,
             });
             setIsLoadingLocation(false);
             showToast('Location acquired successfully!', 'success');
@@ -142,6 +172,9 @@ export default function StudentDashboard() {
             maximumAge: 0,
           }
         );
+      }).catch(() => {
+        showToast('Failed to check location permissions.', 'error');
+        setIsLoadingLocation(false);
       });
     } else {
       showToast('Geolocation is not supported by your browser.', 'error');
@@ -165,8 +198,11 @@ export default function StudentDashboard() {
 
     const lat = parseFloat(location.latitude);
     const lon = parseFloat(location.longitude);
-    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-      showToast('Invalid coordinates. Please enter valid latitude (-90 to 90) and longitude (-180 to 180).', 'error');
+
+    // More robust coordinate validation
+    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180 ||
+      (lat === 0 && lon === 0)) {
+      showToast('Invalid coordinates. Please get a valid location.', 'error');
       return;
     }
 
@@ -180,20 +216,33 @@ export default function StudentDashboard() {
           student: { id: user.id, name: user.name, email: user.email },
           deviceId,
         },
-        { headers: { Authorization: `Bearer ${token}` } }
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 10000 // Add timeout to prevent hanging
+        }
       );
 
       if (response.data.enrolled) {
         showToast('Attendance marked successfully! You are now enrolled in this course.', 'success');
-        fetchEnrolledCourses(user.id);
+        await fetchEnrolledCourses(user.id); // Wait for refresh
       } else {
         showToast('Attendance marked successfully!', 'success');
       }
       setPasscode('');
       setLocation({ latitude: '', longitude: '' });
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Failed to mark attendance. Please try again.';
-      console.error('Attendance error:', errorMessage);
+      let errorMessage = 'Failed to mark attendance. Please try again.';
+      if (error.response) {
+        if (error.response.status === 401) {
+          errorMessage = 'Session expired. Please log in again.';
+          navigate('/');
+        } else if (error.response.data?.message) {
+          errorMessage = error.response.data.message;
+        }
+      } else if (error.request) {
+        errorMessage = 'Network error. Please check your connection.';
+      }
+      console.error('Attendance error:', error);
       showToast(errorMessage, 'error');
     } finally {
       setIsSubmitting(false);
@@ -284,9 +333,8 @@ export default function StudentDashboard() {
             <button
               type="submit"
               disabled={isSubmitting || !deviceId}
-              className={`w-full p-3 text-white rounded-lg transition-colors duration-200 text-sm font-medium ${
-                isSubmitting || !deviceId ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-              }`}
+              className={`w-full p-3 text-white rounded-lg transition-colors duration-200 text-sm font-medium ${isSubmitting || !deviceId ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                }`}
             >
               {isSubmitting ? 'Submitting...' : 'Mark Attendance'}
             </button>
@@ -295,9 +343,8 @@ export default function StudentDashboard() {
       </main>
       {toast.show && (
         <motion.div
-          className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg z-50 text-white text-sm font-medium ${
-            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-          }`}
+          className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg z-50 text-white text-sm font-medium ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+            }`}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 20 }}
