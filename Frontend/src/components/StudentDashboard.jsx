@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import * as FingerprintJS from '@fingerprintjs/fingerprintjs';
+import FingerprintJS from 'fingerprintjs2';
 
 export default function StudentDashboard() {
   const [passcode, setPasscode] = useState('');
