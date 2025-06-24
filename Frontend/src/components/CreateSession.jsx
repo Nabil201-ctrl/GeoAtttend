@@ -38,7 +38,7 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 5000); // Extended for better UX
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 5000);
   }, []);
 
   const fetchCourses = useCallback(async () => {
@@ -78,14 +78,15 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
   const handleGetLocation = useCallback(() => {
     setIsLoading((prev) => ({ ...prev, location: true }));
 
-    // Check for browser compatibility and provide guidance
+    // Check for browser compatibility and device type
     const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
     const isSafari = /Safari/.test(navigator.userAgent) && /Apple Computer/.test(navigator.vendor);
-    const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+    const isMobileOrTablet = /Mobi|Android|iPad/i.test(navigator.userAgent);
+    const isLaptop = !isMobileOrTablet && (window.screen.width > 1280 || !('ontouchstart' in window));
 
-    if (!isMobile || !(isChrome || isSafari)) {
+    if (isLaptop || !isMobileOrTablet || !(isChrome || isSafari)) {
       showToast(
-        'For best location accuracy, please use Chrome or Safari on a mobile device with Wi-Fi and location services enabled.',
+        'For best location accuracy, please use Chrome or Safari on a mobile device or iPad with Wi-Fi and location services enabled. Laptops are not supported.',
         'error'
       );
       setIsLoading((prev) => ({ ...prev, location: false }));
@@ -93,7 +94,6 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
     }
 
     if (navigator.geolocation) {
-      // Check location permissions
       navigator.permissions.query({ name: 'geolocation' }).then((result) => {
         if (result.state === 'denied') {
           showToast(
@@ -135,9 +135,9 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
             setIsLoading((prev) => ({ ...prev, location: false }));
           },
           {
-            enableHighAccuracy: true, // Use high-accuracy mode for GPS-level data
-            timeout: 10000, // 10 seconds timeout
-            maximumAge: 0, // No cached position
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
           }
         );
       });
@@ -181,7 +181,7 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
     setIsLoading((prev) => ({ ...prev, submit: true }));
     try {
       const startTime = new Date();
-      const duration = durationOptions.find(opt => opt.id === formData.duration)?.minutes || 60;
+      const duration = durationOptions.find((opt) => opt.id === formData.duration)?.minutes || 60;
       const payload = {
         courseId: formData.courseId,
         courseName: formData.courseName,
@@ -190,7 +190,7 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
           latitude: parseFloat(formData.latitude),
           longitude: parseFloat(formData.longitude),
         },
-        radius: geofenceOptions.find(opt => opt.id === formData.geofence)?.radius || 45,
+        radius: geofenceOptions.find((opt) => opt.id === formData.geofence)?.radius || 45,
         passcode: formData.passcode,
         startTime: startTime.toISOString(),
         endTime: new Date(startTime.getTime() + duration * 60 * 1000).toISOString(),
@@ -234,18 +234,20 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
   }, [courses]);
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-card border border-border">
-      <h2 className="text-xl font-semibold mb-4">Create Attendance Session</h2>
-      <p className="text-textSecondary mb-4 text-sm">
-        For best location accuracy, use Chrome or Safari on a mobile device with location services and Wi-Fi enabled (even if not connected).
+    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+      <h2 className="text-2xl font-bold text-gray-800 mb-3">Create Attendance Session</h2>
+      <p className="text-gray-600 mb-4 text-sm">
+        For best location accuracy, use Chrome or Safari on a mobile device or iPad with location services and Wi-Fi enabled (even if not connected). Laptops are not supported.
       </p>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Course</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Course</label>
           <select
             value={formData.courseId}
             onChange={handleCourseChange}
-            className={`w-full p-3 border rounded focus:outline-none focus:border-accent transition-colors ${errors.courseId ? 'border-error' : 'border-border'}`}
+            className={`w-full p-3 border rounded-lg focus:outline-none focus:border-blue-600 transition-colors ${
+              errors.courseId ? 'border-red-600' : 'border-gray-200'
+            }`}
             disabled={isLoading.courses}
             aria-invalid={!!errors.courseId}
           >
@@ -256,15 +258,15 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
               </option>
             ))}
           </select>
-          {errors.courseId && <p className="text-error text-xs mt-1">{errors.courseId}</p>}
+          {errors.courseId && <p className="text-red-600 text-xs mt-1">{errors.courseId}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Geofence</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Geofence</label>
           <select
             value={formData.geofence}
             onChange={(e) => setFormData((prev) => ({ ...prev, geofence: e.target.value }))}
-            className="w-full p-3 border rounded focus:outline-none focus:border-accent transition-colors border-border"
+            className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:border-blue-600 transition-colors"
           >
             {geofenceOptions.map((option) => (
               <option key={option.id} value={option.id}>
@@ -275,11 +277,11 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Duration</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
           <select
             value={formData.duration}
             onChange={(e) => setFormData((prev) => ({ ...prev, duration: e.target.value }))}
-            className="w-full p-3 border rounded focus:outline-none focus:border-accent transition-colors border-border"
+            className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:border-blue-600 transition-colors"
           >
             {durationOptions.map((option) => (
               <option key={option.id} value={option.id}>
@@ -290,13 +292,15 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Session Passcode</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Session Passcode</label>
           <div className="flex">
             <input
               type="text"
               value={formData.passcode}
               readOnly
-              className={`flex-grow p-3 border rounded-l focus:outline-none ${errors.passcode ? 'border-error' : 'border-border'} transition-colors`}
+              className={`flex-grow p-3 border rounded-l-lg focus:outline-none ${
+                errors.passcode ? 'border-red-600' : 'border-gray-200'
+              } transition-colors`}
               placeholder="e.g., CS101-A9J42"
               aria-invalid={!!errors.passcode}
             />
@@ -312,7 +316,7 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
                 }
               }}
               disabled={!formData.passcode}
-              className="p-3 bg-accent text-white border border-accent hover:bg-blue-600 disabled:opacity-50 transition-colors"
+              className="p-3 bg-blue-600 text-white border border-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors"
               aria-label="Copy passcode"
             >
               <i className="fas fa-copy"></i>
@@ -320,17 +324,17 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
             <button
               type="button"
               onClick={generatePasscode}
-              className="p-3 bg-accent text-white border border-accent rounded-r hover:bg-blue-600 transition-colors"
+              className="p-3 bg-blue-600 text-white border border-blue-600 rounded-r-lg hover:bg-blue-700 transition-colors"
               aria-label="Generate new passcode"
             >
               <i className="fas fa-sync-alt"></i>
             </button>
           </div>
-          {errors.passcode && <p className="text-error text-xs mt-1">{errors.passcode}</p>}
+          {errors.passcode && <p className="text-red-600 text-xs mt-1">{errors.passcode}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Location</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
           <div className="flex space-x-2">
             <input
               type="number"
@@ -339,7 +343,9 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
                 setFormData((prev) => ({ ...prev, latitude: e.target.value }));
                 setErrors((prev) => ({ ...prev, latitude: '' }));
               }}
-              className={`w-full p-3 border rounded focus:outline-none focus:border-accent transition-colors ${errors.latitude ? 'border-error' : 'border-border'}`}
+              className={`w-full p-3 border rounded-lg focus:outline-none focus:border-blue-600 transition-colors ${
+                errors.latitude ? 'border-red-600' : 'border-gray-200'
+              }`}
               placeholder="Latitude"
               step="any"
               aria-invalid={!!errors.latitude}
@@ -351,7 +357,9 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
                 setFormData((prev) => ({ ...prev, longitude: e.target.value }));
                 setErrors((prev) => ({ ...prev, longitude: '' }));
               }}
-              className={`w-full p-3 border rounded focus:outline-none focus:border-accent transition-colors ${errors.longitude ? 'border-error' : 'border-border'}`}
+              className={`w-full p-3 border rounded-lg focus:outline-none focus:border-blue-600 transition-colors ${
+                errors.longitude ? 'border-red-600' : 'border-gray-200'
+              }`}
               placeholder="Longitude"
               step="any"
               aria-invalid={!!errors.longitude}
@@ -360,21 +368,23 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
               type="button"
               onClick={handleGetLocation}
               disabled={isLoading.location}
-              className="p-3 bg-accent text-white rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
+              className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
               aria-label="Get current location"
             >
               {isLoading.location ? 'Getting...' : 'Get Location'}
             </button>
           </div>
           {(errors.latitude || errors.longitude) && (
-            <p className="text-error text-xs mt-1">{errors.latitude || errors.longitude}</p>
+            <p className="text-red-600 text-xs mt-1">{errors.latitude || errors.longitude}</p>
           )}
         </div>
 
         <button
           type="submit"
           disabled={isLoading.submit}
-          className={`w-full p-3 text-white rounded transition-colors duration-200 ${isLoading.submit ? 'bg-gray-400 cursor-not-allowed' : 'bg-accent hover:bg-blue-600'}`}
+          className={`w-full p-3 text-white rounded-lg transition-colors duration-200 text-sm font-medium ${
+            isLoading.submit ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+          }`}
         >
           {isLoading.submit ? 'Creating...' : 'Create Session'}
         </button>
@@ -382,7 +392,9 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
 
       {toast.show && (
         <div
-          className={`fixed bottom-4 right-4 px-4 py-2 rounded shadow-lg text-white transition-opacity duration-300 ${toast.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}
+          className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-white text-sm font-medium ${
+            toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'
+          }`}
           role="alert"
         >
           {toast.message}

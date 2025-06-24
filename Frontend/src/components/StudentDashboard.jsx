@@ -17,9 +17,8 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Generate device ID
     FingerprintJS.get((components) => {
-      const values = components.map(component => component.value);
+      const values = components.map((component) => component.value);
       const fingerprint = FingerprintJS.x64hash128(values.join(''), 31);
       setDeviceId(fingerprint);
     });
@@ -33,11 +32,10 @@ export default function StudentDashboard() {
       }
 
       try {
-        // Verify token is valid and belongs to a student
         const base64Url = token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const decoded = JSON.parse(atob(base64));
-        
+
         if (decoded.role !== 'student') {
           showToast('Only students can access this dashboard.', 'error');
           navigate('/');
@@ -70,7 +68,7 @@ export default function StudentDashboard() {
         headers: { Authorization: `Bearer ${token}` },
         params: { studentId },
       });
-      setEnrolledCourses(response.data.map(course => course.courseId));
+      setEnrolledCourses(response.data.map((course) => course.courseId));
     } catch (error) {
       console.error('Error fetching enrolled courses:', error);
       showToast('Failed to load enrolled courses.', 'error');
@@ -79,20 +77,20 @@ export default function StudentDashboard() {
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 5000); // Extended toast duration for better UX
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 5000);
   };
 
   const handleGetLocation = () => {
     setIsLoadingLocation(true);
 
-    // Check for browser compatibility and provide guidance
     const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
     const isSafari = /Safari/.test(navigator.userAgent) && /Apple Computer/.test(navigator.vendor);
-    const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+    const isMobileOrTablet = /Mobi|Android|iPad/i.test(navigator.userAgent);
+    const isLaptop = !isMobileOrTablet && (window.screen.width > 1280 || !('ontouchstart' in window));
 
-    if (!isMobile || !(isChrome || isSafari)) {
+    if (isLaptop || !isMobileOrTablet || !(isChrome || isSafari)) {
       showToast(
-        'For best location accuracy, please use Chrome or Safari on a mobile device with Wi-Fi and location services enabled.',
+        'For best location accuracy, please use Chrome or Safari on a mobile device or iPad with Wi-Fi and location services enabled. Laptops are not supported.',
         'error'
       );
       setIsLoadingLocation(false);
@@ -100,7 +98,6 @@ export default function StudentDashboard() {
     }
 
     if (navigator.geolocation) {
-      // Check location permissions
       navigator.permissions.query({ name: 'geolocation' }).then((result) => {
         if (result.state === 'denied') {
           showToast(
@@ -140,9 +137,9 @@ export default function StudentDashboard() {
             setIsLoadingLocation(false);
           },
           {
-            enableHighAccuracy: true, // Use high-accuracy mode for GPS-level data
-            timeout: 10000, // 10 seconds timeout
-            maximumAge: 0, // No cached position
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
           }
         );
       });
@@ -215,13 +212,14 @@ export default function StudentDashboard() {
       className="min-h-screen flex flex-col bg-gray-100"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
     >
-      <header className="bg-white shadow">
+      <header className="bg-white shadow-md">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-xl font-bold">Student Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Student Dashboard</h1>
           <button
             onClick={handleLogout}
-            className="p-2 bg-error text-white rounded hover:bg-red-700"
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 text-sm font-medium"
           >
             Logout
           </button>
@@ -229,40 +227,39 @@ export default function StudentDashboard() {
       </header>
       <main className="container mx-auto px-4 py-8 flex-grow">
         <motion.div
-          className="bg-white p-6 rounded-lg shadow-sm border border-border"
+          className="bg-white p-6 rounded-lg shadow-md border border-gray-200"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
         >
-          <h2 className="text-xl font-semibold mb-2">Mark Attendance</h2>
-          <p className="text-textSecondary mb-4 text-sm">
-            Enter the session passcode and get your location to mark attendance.
-            For best results, use Chrome or Safari on a mobile device with location services and Wi-Fi enabled (even if not connected).
-            Your device is uniquely identified to prevent spoofing.
+          <h2 className="text-2xl font-bold text-gray-800 mb-3">Mark Attendance</h2>
+          <p className="text-gray-600 mb-4 text-sm">
+            Enter the session passcode and get your location to mark attendance. For best results, use Chrome or Safari on a mobile device or iPad with location services and Wi-Fi enabled (even if not connected). Laptops are not supported. Your device is uniquely identified to prevent spoofing.
           </p>
           {enrolledCourses.length === 0 && (
-            <p className="text-error mb-4 text-sm">
+            <p className="text-red-600 mb-4 text-sm">
               You are not enrolled in any courses. Mark attendance with a valid passcode to enroll.
             </p>
           )}
           <form onSubmit={handleMarkAttendance} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Passcode</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Passcode</label>
               <input
                 type="text"
                 value={passcode}
                 onChange={(e) => setPasscode(e.target.value)}
-                className="w-full p-3 border border-border rounded focus:outline-none focus:border-primary"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:border-blue-600 transition-colors"
                 placeholder="e.g., CS101-123"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Location</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
               <div className="flex space-x-2">
                 <input
                   type="number"
                   value={location.latitude}
                   onChange={(e) => setLocation({ ...location, latitude: e.target.value })}
-                  className="w-full p-3 border border-border rounded focus:outline-none focus:border-primary"
+                  className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:border-blue-600 transition-colors"
                   placeholder="Latitude"
                   step="any"
                 />
@@ -270,7 +267,7 @@ export default function StudentDashboard() {
                   type="number"
                   value={location.longitude}
                   onChange={(e) => setLocation({ ...location, longitude: e.target.value })}
-                  className="w-full p-3 border border-border rounded focus:outline-none focus:border-primary"
+                  className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:border-blue-600 transition-colors"
                   placeholder="Longitude"
                   step="any"
                 />
@@ -278,7 +275,7 @@ export default function StudentDashboard() {
                   type="button"
                   onClick={handleGetLocation}
                   disabled={isLoadingLocation}
-                  className="p-3 bg-primary text-white rounded hover:bg-accent disabled:opacity-50"
+                  className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
                   {isLoadingLocation ? 'Getting...' : 'Get Location'}
                 </button>
@@ -287,7 +284,9 @@ export default function StudentDashboard() {
             <button
               type="submit"
               disabled={isSubmitting || !deviceId}
-              className={`w-full p-3 bg-primary text-white rounded hover:bg-accent transition-all duration-200 ${isSubmitting || !deviceId ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`w-full p-3 text-white rounded-lg transition-colors duration-200 text-sm font-medium ${
+                isSubmitting || !deviceId ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+              }`}
             >
               {isSubmitting ? 'Submitting...' : 'Mark Attendance'}
             </button>
@@ -296,10 +295,13 @@ export default function StudentDashboard() {
       </main>
       {toast.show && (
         <motion.div
-          className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 ${toast.type === 'success' ? 'bg-success text-white' : 'bg-error text-white'}`}
-          initial={{ opacity: 0, y: 10 }}
+          className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg z-50 text-white text-sm font-medium ${
+            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+          }`}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 10 }}
+          exit={{ opacity: 0, y: 20 }}
+          transition={{ duration: 0.2 }}
         >
           {toast.message}
         </motion.div>

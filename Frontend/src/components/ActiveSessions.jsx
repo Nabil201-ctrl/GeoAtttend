@@ -14,7 +14,6 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
   const [showCloseConfirmation, setShowCloseConfirmation] = useState(null);
   const [countdowns, setCountdowns] = useState({});
 
-  // Countdown timer effect
   useEffect(() => {
     const timer = setInterval(() => {
       const newCountdowns = {};
@@ -42,7 +41,7 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 5000); // Extended for better UX
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 5000);
   };
 
   const handleShowAnalytics = (session) => {
@@ -109,7 +108,6 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
     }
   };
 
-  // Function to count attendees by department
   const getDepartmentStats = (attendees) => {
     const stats = {};
     attendees.forEach((attendee) => {
@@ -128,7 +126,7 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
     >
       <h2 className="text-2xl font-bold text-gray-800 mb-3">Active Sessions</h2>
       <p className="text-gray-600 mb-4 text-sm">
-        View and manage ongoing sessions. For accurate location data, sessions are created using Chrome or Safari on a mobile device with Wi-Fi and location services enabled.
+        View and manage ongoing sessions. For accurate location data, sessions are created using Chrome or Safari on a mobile device or iPad with Wi-Fi and location services enabled. Laptops are not supported.
       </p>
 
       {sessions.length === 0 ? (
@@ -212,7 +210,6 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
         </ul>
       )}
 
-      {/* Analytics Modal */}
       {showAnalytics && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
           <motion.div
@@ -224,7 +221,6 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
             <h3 className="text-xl font-bold text-gray-800 mb-4">
               Analytics: {showAnalytics.courseName}
             </h3>
-
             <div className="mb-4">
               <h4 className="font-semibold text-gray-700 mb-2">Attendance by Department</h4>
               <ul className="space-y-1 text-sm text-gray-600">
@@ -238,7 +234,6 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
                 )}
               </ul>
             </div>
-
             <div className="mb-4">
               <h4 className="font-semibold text-gray-700 mb-2">Session Details</h4>
               <div className="text-sm text-gray-600 space-y-1">
@@ -261,7 +256,6 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
                 </p>
               </div>
             </div>
-
             <button
               onClick={() => setShowAnalytics(null)}
               className="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors duration-200 text-sm font-medium"
@@ -272,7 +266,6 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
         </div>
       )}
 
-      {/* Close Confirmation Modal */}
       {showCloseConfirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
           <motion.div
@@ -288,7 +281,6 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
             <p className="text-gray-600 mb-4 text-sm">
               A download will be available for the attendance records.
             </p>
-
             <div className="flex space-x-4">
               <button
                 onClick={() => confirmCloseSession(showCloseConfirmation)}
@@ -312,7 +304,6 @@ export default function ActiveSessions({ sessions, setActiveSessions }) {
         </div>
       )}
 
-      {/* Toast Notification */}
       {toast.show && (
         <motion.div
           className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg z-50 text-white text-sm font-medium ${
