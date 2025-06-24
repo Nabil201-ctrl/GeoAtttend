@@ -1,3 +1,4 @@
+// components/CreateSession.js
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -37,7 +38,7 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 5000); // Extended for better UX
   }, []);
 
   const fetchCourses = useCallback(async () => {
@@ -76,28 +77,74 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
 
   const handleGetLocation = useCallback(() => {
     setIsLoading((prev) => ({ ...prev, location: true }));
-    if (!navigator.geolocation) {
-      showToast('Geolocation not supported', 'error');
+
+    // Check for browser compatibility and provide guidance
+    const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+    const isSafari = /Safari/.test(navigator.userAgent) && /Apple Computer/.test(navigator.vendor);
+    const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+
+    if (!isMobile || !(isChrome || isSafari)) {
+      showToast(
+        'For best location accuracy, please use Chrome or Safari on a mobile device with Wi-Fi and location services enabled.',
+        'error'
+      );
       setIsLoading((prev) => ({ ...prev, location: false }));
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setFormData((prev) => ({
-          ...prev,
-          latitude: position.coords.latitude.toFixed(6),
-          longitude: position.coords.longitude.toFixed(6),
-        }));
-        setErrors((prev) => ({ ...prev, latitude: '', longitude: '' }));
-        setIsLoading((prev) => ({ ...prev, location: false }));
-      },
-      () => {
-        showToast('Failed to get location', 'error');
-        setIsLoading((prev) => ({ ...prev, location: false }));
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+    if (navigator.geolocation) {
+      // Check location permissions
+      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+        if (result.state === 'denied') {
+          showToast(
+            'Location access is denied. Please enable location permissions in your browser settings and ensure Wi-Fi is turned on.',
+            'error'
+          );
+          setIsLoading((prev) => ({ ...prev, location: false }));
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setFormData((prev) => ({
+              ...prev,
+              latitude: position.coords.latitude.toFixed(6),
+              longitude: position.coords.longitude.toFixed(6),
+            }));
+            setErrors((prev) => ({ ...prev, latitude: '', longitude: '' }));
+            setIsLoading((prev) => ({ ...prev, location: false }));
+            showToast('Location acquired successfully!', 'success');
+          },
+          (error) => {
+            let errorMessage = 'Failed to get location. ';
+            switch (error.code) {
+              case error.PERMISSION_DENIED:
+                errorMessage += 'Please enable location permissions and ensure Wi-Fi is turned on.';
+                break;
+              case error.POSITION_UNAVAILABLE:
+                errorMessage += 'Location information is unavailable. Try again with Wi-Fi enabled.';
+                break;
+              case error.TIMEOUT:
+                errorMessage += 'The request timed out. Ensure Wi-Fi is on and try again.';
+                break;
+              default:
+                errorMessage += 'An unknown error occurred.';
+                break;
+            }
+            showToast(errorMessage, 'error');
+            setIsLoading((prev) => ({ ...prev, location: false }));
+          },
+          {
+            enableHighAccuracy: true, // Use high-accuracy mode for GPS-level data
+            timeout: 10000, // 10 seconds timeout
+            maximumAge: 0, // No cached position
+          }
+        );
+      });
+    } else {
+      showToast('Geolocation is not supported by your browser.', 'error');
+      setIsLoading((prev) => ({ ...prev, location: false }));
+    }
   }, [showToast]);
 
   const generatePasscode = useCallback(() => {
@@ -189,6 +236,9 @@ export default function CreateSession({ setActiveSessions, refreshCourses }) {
   return (
     <div className="bg-white p-6 rounded-lg shadow-card border border-border">
       <h2 className="text-xl font-semibold mb-4">Create Attendance Session</h2>
+      <p className="text-textSecondary mb-4 text-sm">
+        For best location accuracy, use Chrome or Safari on a mobile device with location services and Wi-Fi enabled (even if not connected).
+      </p>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1">Course</label>

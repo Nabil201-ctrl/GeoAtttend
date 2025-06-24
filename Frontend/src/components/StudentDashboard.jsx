@@ -79,27 +79,75 @@ export default function StudentDashboard() {
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 5000); // Extended toast duration for better UX
   };
 
   const handleGetLocation = () => {
     setIsLoadingLocation(true);
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation({
-            latitude: position.coords.latitude.toFixed(6),
-            longitude: position.coords.longitude.toFixed(6),
-          });
-          setIsLoadingLocation(false);
-        },
-        () => {
-          showToast('Failed to get location', 'error');
-          setIsLoadingLocation(false);
-        }
+
+    // Check for browser compatibility and provide guidance
+    const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+    const isSafari = /Safari/.test(navigator.userAgent) && /Apple Computer/.test(navigator.vendor);
+    const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+
+    if (!isMobile || !(isChrome || isSafari)) {
+      showToast(
+        'For best location accuracy, please use Chrome or Safari on a mobile device with Wi-Fi and location services enabled.',
+        'error'
       );
+      setIsLoadingLocation(false);
+      return;
+    }
+
+    if (navigator.geolocation) {
+      // Check location permissions
+      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+        if (result.state === 'denied') {
+          showToast(
+            'Location access is denied. Please enable location permissions in your browser settings and ensure Wi-Fi is turned on.',
+            'error'
+          );
+          setIsLoadingLocation(false);
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setLocation({
+              latitude: position.coords.latitude.toFixed(6),
+              longitude: position.coords.longitude.toFixed(6),
+            });
+            setIsLoadingLocation(false);
+            showToast('Location acquired successfully!', 'success');
+          },
+          (error) => {
+            let errorMessage = 'Failed to get location. ';
+            switch (error.code) {
+              case error.PERMISSION_DENIED:
+                errorMessage += 'Please enable location permissions and ensure Wi-Fi is turned on.';
+                break;
+              case error.POSITION_UNAVAILABLE:
+                errorMessage += 'Location information is unavailable. Try again with Wi-Fi enabled.';
+                break;
+              case error.TIMEOUT:
+                errorMessage += 'The request timed out. Ensure Wi-Fi is on and try again.';
+                break;
+              default:
+                errorMessage += 'An unknown error occurred.';
+                break;
+            }
+            showToast(errorMessage, 'error');
+            setIsLoadingLocation(false);
+          },
+          {
+            enableHighAccuracy: true, // Use high-accuracy mode for GPS-level data
+            timeout: 10000, // 10 seconds timeout
+            maximumAge: 0, // No cached position
+          }
+        );
+      });
     } else {
-      showToast('Geolocation not supported', 'error');
+      showToast('Geolocation is not supported by your browser.', 'error');
       setIsLoadingLocation(false);
     }
   };
@@ -107,7 +155,7 @@ export default function StudentDashboard() {
   const handleMarkAttendance = async (e) => {
     e.preventDefault();
     if (!passcode || !location.latitude || !location.longitude || !deviceId) {
-      showToast('Please enter passcode, get location, and ensure device ID is generated', 'error');
+      showToast('Please enter passcode, get location, and ensure device ID is generated.', 'error');
       return;
     }
 
@@ -133,11 +181,11 @@ export default function StudentDashboard() {
           passcode,
           location: { latitude: lat, longitude: lon },
           student: { id: user.id, name: user.name, email: user.email },
-          deviceId
+          deviceId,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
+
       if (response.data.enrolled) {
         showToast('Attendance marked successfully! You are now enrolled in this course.', 'success');
         fetchEnrolledCourses(user.id);
@@ -188,6 +236,7 @@ export default function StudentDashboard() {
           <h2 className="text-xl font-semibold mb-2">Mark Attendance</h2>
           <p className="text-textSecondary mb-4 text-sm">
             Enter the session passcode and get your location to mark attendance.
+            For best results, use Chrome or Safari on a mobile device with location services and Wi-Fi enabled (even if not connected).
             Your device is uniquely identified to prevent spoofing.
           </p>
           {enrolledCourses.length === 0 && (
